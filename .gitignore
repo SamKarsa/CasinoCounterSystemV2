@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# SQLite dev database
+*.db
+*.db-shm
+*.db-wal
+
+# Claude Code
+.claude/
