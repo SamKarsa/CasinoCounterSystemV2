@@ -72,14 +72,6 @@ fn create_tables(conn: &Connection) -> Result<()> {
             FOREIGN KEY (routeId) REFERENCES Route(routeId)
         );
 
-        CREATE TABLE IF NOT EXISTS InfoMachine (
-            infoMachineId INTEGER PRIMARY KEY,
-            nameClient TEXT,
-            phone TEXT,
-            address TEXT,
-            FOREIGN KEY (infoMachineId) REFERENCES Machine(machineId) ON DELETE CASCADE
-        );
-
         CREATE TABLE IF NOT EXISTS CounterRecord (
             counterRecordId INTEGER PRIMARY KEY AUTOINCREMENT,
             recordDate TEXT NOT NULL,

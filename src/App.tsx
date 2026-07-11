@@ -1,23 +1,28 @@
+import { useState } from "react";
 import "./App.css";
+import Login from "./pages/Login";
+import type { User } from "./types";
 
 function App() {
+  const [user, setUser] = useState<User | null>(null);
+
+  if (!user) {
+    return <Login onLoginSuccess={setUser} />;
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="text-center">
-        <h1 className="text-5xl font-bold text-blue-900 mb-4">
-          🎰 Casino Counter System
+        <h1 className="text-3xl font-bold text-navy-900 mb-2">
+          Bienvenido, {user.userName}
         </h1>
-        <p className="text-gray-600 text-lg mb-2">
-          Versión 2.0 - Tauri + React
-        </p>
-        <p className="text-gray-400 text-sm">
-          Sistema de gestión de contadores
-        </p>
-        <div className="mt-8">
-          <button className="bg-blue-900 text-white px-8 py-3 rounded-lg hover:bg-blue-800 transition-colors shadow-lg font-semibold">
-            Comenzar →
-          </button>
-        </div>
+        <p className="text-gray-600 mb-6">Rol: {user.roleName}</p>
+        <button
+          onClick={() => setUser(null)}
+          className="bg-navy-900 text-white px-6 py-2 rounded-md hover:bg-navy-800 transition-colors"
+        >
+          Cerrar sesión
+        </button>
       </div>
     </div>
   );

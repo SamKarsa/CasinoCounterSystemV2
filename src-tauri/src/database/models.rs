@@ -28,9 +28,6 @@ pub struct Machine {
     pub num_coin: Option<i32>,
     pub route_id: i64,
     pub route_name: Option<String>,
-    pub name_client: Option<String>,
-    pub phone: Option<String>,
-    pub address: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
