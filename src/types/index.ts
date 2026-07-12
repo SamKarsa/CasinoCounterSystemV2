@@ -40,3 +40,15 @@ export interface CoinType {
     coinTypeId: number;
     numCoin: number;
 }
+
+export interface CounterRecordWithCalc {
+    counterRecordId: number;
+    recordDate: string;
+    counterIn: number;
+    counterOut: number;
+    totalDelivered: number;
+    isBaseline: boolean;
+    inOut: number | null;
+    saldo: number | null;
+    faltaSobra: number | null;
+}
