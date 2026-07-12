@@ -8,6 +8,10 @@ pub fn authenticate_user(
     password: String,
     db: State<DbConnection>,
 ) -> Result<User, String> {
+    // El usuario se compara sin espacios sobrantes; la contraseña NO se toca
+    // (un espacio puede ser parte legítima de ella).
+    let username = username.trim();
+
     let conn = db
         .0
         .lock()
@@ -26,7 +30,7 @@ pub fn authenticate_user(
         })?;
 
     let user = stmt
-        .query_row([&username], |row| {
+        .query_row([username], |row| {
             let stored_hash: String = row.get(2)?;
 
             let parsed_hash = PasswordHash::new(&stored_hash).map_err(|e| {
