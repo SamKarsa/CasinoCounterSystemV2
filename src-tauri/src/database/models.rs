@@ -43,6 +43,21 @@ pub struct CounterRecord {
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct CounterRecordWithCalc {
+    pub counter_record_id: i64,
+    pub record_date: String,
+    pub counter_in: i64,
+    pub counter_out: i64,
+    pub total_delivered: f64,
+    pub is_baseline: bool,
+    // Calculados en Rust; None si is_baseline (no hay contra qué comparar)
+    pub in_out: Option<f64>,
+    pub saldo: Option<f64>,
+    pub falta_sobra: Option<f64>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct TypeMachine {
     pub type_machine_id: i64,
     pub name_type_machine: String,

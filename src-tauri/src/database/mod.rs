@@ -78,6 +78,7 @@ fn create_tables(conn: &Connection) -> Result<()> {
             counterIn INTEGER NOT NULL,
             counterOut INTEGER NOT NULL,
             totalDelivered REAL NOT NULL,
+            isBaseline INTEGER NOT NULL DEFAULT 0,
             machineId INTEGER NOT NULL,
             FOREIGN KEY (machineId) REFERENCES Machine(machineId),
             CHECK (counterIn >= 0 AND counterOut >= 0),
