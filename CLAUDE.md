@@ -18,6 +18,11 @@ Desktop app for a slot-machine route business. ~6 routes, ~120 machines each. Ev
 
 The app is 100% local/offline, single PC, single user at a time. An older C# WinForms + SQLite version is in production; its schema matches this one, so migration will be a file copy plus a one-time plaintext→Argon2 password migration.
 
+Business rule: machines whose type is named exactly 'Poker' compute
+IN-OUT as (Δout) * coinValue (only the OUT counter). All other types
+use ((Δin) - (Δout)) * coinValue. The comparison is by
+nameTypeMachine = 'Poker' — do not rename that seed row.
+
 ## Architecture
 
 Tauri 2 desktop app with a React 19 + TypeScript frontend and a Rust backend.
