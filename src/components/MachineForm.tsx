@@ -1,29 +1,43 @@
 import { useEffect, useState } from "react";
 import {
   createMachine,
+  updateMachine,
   getAllTypeMachines,
   getAllCoinTypes,
+  getAllRoutes,
 } from "../lib/tauri";
-import type { Machine, TypeMachine, CoinType } from "../types";
+import type { Machine, TypeMachine, CoinType, Route } from "../types";
 
 interface MachineFormProps {
   routeId: number;
   routeName: string;
+  machine?: Machine; // si viene → modo edición
   onCreated: (machine: Machine) => void;
+  onUpdated?: (machine: Machine) => void;
   onCancel: () => void;
 }
 
 export default function MachineForm({
   routeId,
   routeName,
+  machine,
   onCreated,
+  onUpdated,
   onCancel,
 }: MachineFormProps) {
+  const isEdit = !!machine;
+
   const [types, setTypes] = useState<TypeMachine[]>([]);
   const [coins, setCoins] = useState<CoinType[]>([]);
-  const [numberMachine, setNumberMachine] = useState("");
-  const [typeMachineId, setTypeMachineId] = useState<number>(0);
-  const [coinTypeId, setCoinTypeId] = useState<number>(0);
+  const [routes, setRoutes] = useState<Route[]>([]);
+  const [numberMachine, setNumberMachine] = useState(machine?.numberMachine ?? "");
+  const [typeMachineId, setTypeMachineId] = useState<number>(
+    machine?.typeMachineId ?? 0
+  );
+  const [coinTypeId, setCoinTypeId] = useState<number>(machine?.coinTypeId ?? 0);
+  const [selectedRouteId, setSelectedRouteId] = useState<number>(
+    machine?.routeId ?? routeId
+  );
   const [initialIn, setInitialIn] = useState("");
   const [initialOut, setInitialOut] = useState("");
   const [error, setError] = useState("");
@@ -34,28 +48,56 @@ export default function MachineForm({
       .then(([t, c]) => {
         setTypes(t);
         setCoins(c);
-        if (t.length > 0) setTypeMachineId(t[0].typeMachineId);
-        if (c.length > 0) setCoinTypeId(c[0].coinTypeId);
+        // En creación se elige el primero por defecto; en edición ya viene precargado
+        if (!isEdit) {
+          if (t.length > 0) setTypeMachineId(t[0].typeMachineId);
+          if (c.length > 0) setCoinTypeId(c[0].coinTypeId);
+        }
       })
       .catch(() => setError("Error cargando tipos y monedas"));
-  }, []);
+  }, [isEdit]);
+
+  // Las rutas solo hacen falta en edición (para mover la máquina de ruta)
+  useEffect(() => {
+    if (!isEdit) return;
+    getAllRoutes()
+      .then(setRoutes)
+      .catch(() => setError("Error cargando las rutas"));
+  }, [isEdit]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setLoading(true);
     try {
-      const machine = await createMachine({
-        numberMachine,
-        typeMachineId,
-        coinTypeId,
-        routeId,
-        initialIn: parseInt(initialIn, 10),
-        initialOut: parseInt(initialOut, 10),
-      });
-      onCreated(machine);
+      if (machine) {
+        const updated = await updateMachine({
+          machineId: machine.machineId,
+          numberMachine,
+          typeMachineId,
+          coinTypeId,
+          routeId: selectedRouteId,
+        });
+        onUpdated?.(updated);
+      } else {
+        const created = await createMachine({
+          numberMachine,
+          typeMachineId,
+          coinTypeId,
+          routeId,
+          initialIn: parseInt(initialIn, 10),
+          initialOut: parseInt(initialOut, 10),
+        });
+        onCreated(created);
+      }
     } catch (err) {
-      setError(typeof err === "string" ? err : "Error creando la máquina");
+      setError(
+        typeof err === "string"
+          ? err
+          : isEdit
+          ? "Error actualizando la máquina"
+          : "Error creando la máquina"
+      );
     } finally {
       setLoading(false);
     }
@@ -64,13 +106,13 @@ export default function MachineForm({
   return (
     <div className="max-w-lg mx-auto mt-8">
       <h2 className="text-2xl font-bold text-navy-900 mb-1 text-center">
-        Crear Máquina
+        {isEdit ? "Editar máquina" : "Crear Máquina"}
       </h2>
-      <p className="text-gray-500 text-center text-sm mb-6">
-        en {routeName}
-      </p>
+      {!isEdit && (
+        <p className="text-gray-500 text-center text-sm mb-6">en {routeName}</p>
+      )}
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className={isEdit ? "space-y-4 mt-6" : "space-y-4"}>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -118,33 +160,56 @@ export default function MachineForm({
               ))}
             </select>
           </div>
-          <div></div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              IN instalación
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={initialIn}
-              onChange={(e) => setInitialIn(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-navy-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              OUT instalación
-            </label>
-            <input
-              type="number"
-              min="0"
-              value={initialOut}
-              onChange={(e) => setInitialOut(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-navy-500"
-            />
-          </div>
+          {isEdit ? (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Ruta
+              </label>
+              <select
+                value={selectedRouteId}
+                onChange={(e) => setSelectedRouteId(Number(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-navy-500 bg-white"
+              >
+                {routes.map((r) => (
+                  <option key={r.routeId} value={r.routeId}>
+                    {r.routeName}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div></div>
+          )}
+          {!isEdit && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  IN instalación
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={initialIn}
+                  onChange={(e) => setInitialIn(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-navy-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  OUT instalación
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={initialOut}
+                  onChange={(e) => setInitialOut(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-navy-500"
+                />
+              </div>
+            </>
+          )}
         </div>
 
         {error && (
@@ -159,7 +224,13 @@ export default function MachineForm({
             disabled={loading}
             className="flex-1 bg-navy-900 text-white py-2.5 rounded-md font-semibold hover:bg-navy-800 transition-colors disabled:bg-gray-400"
           >
-            {loading ? "Guardando..." : "Guardar"}
+            {loading
+              ? isEdit
+                ? "Actualizando..."
+                : "Guardando..."
+              : isEdit
+              ? "Actualizar"
+              : "Guardar"}
           </button>
           <button
             type="button"

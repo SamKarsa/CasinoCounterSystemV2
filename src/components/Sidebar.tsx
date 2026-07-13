@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { Route } from "../types";
 
 interface SidebarProps {
@@ -5,6 +6,8 @@ interface SidebarProps {
   selectedRouteId: number | null;
   onSelectRoute: (routeId: number) => void;
   onAddRoute: () => void;
+  onEditRoute: (route: Route) => void;
+  onDeleteRoute: (route: Route) => void;
   onLogout: () => void;
   userName: string;
 }
@@ -14,9 +17,31 @@ export default function Sidebar({
   selectedRouteId,
   onSelectRoute,
   onAddRoute,
+  onEditRoute,
+  onDeleteRoute,
   onLogout,
   userName,
 }: SidebarProps) {
+  // Menú contextual (clic derecho) sobre una ruta
+  const [menu, setMenu] = useState<{ x: number; y: number; route: Route } | null>(
+    null
+  );
+
+  // Cerrar el menú al hacer click fuera o con Escape
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenu(null);
+    };
+    window.addEventListener("click", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [menu]);
+
   return (
     <aside className="w-64 bg-navy-950 flex flex-col h-screen">
       {/* Logo */}
@@ -54,6 +79,10 @@ export default function Sidebar({
               <li key={route.routeId}>
                 <button
                   onClick={() => onSelectRoute(route.routeId)}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    setMenu({ x: e.clientX, y: e.clientY, route });
+                  }}
                   className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
                     selectedRouteId === route.routeId
                       ? "bg-white/15 text-white font-medium"
@@ -78,6 +107,34 @@ export default function Sidebar({
           Salir
         </button>
       </div>
+
+      {/* Menú contextual flotante */}
+      {menu && (
+        <div
+          className="fixed z-50 min-w-[9rem] rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg"
+          style={{ top: menu.y, left: menu.x }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            onClick={() => {
+              onEditRoute(menu.route);
+              setMenu(null);
+            }}
+            className="block w-full px-4 py-1.5 text-left text-gray-700 hover:bg-gray-100"
+          >
+            Editar
+          </button>
+          <button
+            onClick={() => {
+              onDeleteRoute(menu.route);
+              setMenu(null);
+            }}
+            className="block w-full px-4 py-1.5 text-left text-red-600 hover:bg-red-50"
+          >
+            Eliminar
+          </button>
+        </div>
+      )}
     </aside>
   );
 }

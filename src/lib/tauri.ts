@@ -16,6 +16,14 @@ export function createRoute(routeName: string): Promise<Route> {
   return invoke<Route>("create_route", { routeName });
 }
 
+export function updateRoute(routeId: number, routeName: string): Promise<Route> {
+  return invoke<Route>("update_route", { routeId, routeName });
+}
+
+export function deleteRoute(routeId: number): Promise<void> {
+  return invoke("delete_route", { routeId });
+}
+
 export function getAllTypeMachines(): Promise<TypeMachine[]> {
   return invoke<TypeMachine[]>("get_all_type_machines");
 }
@@ -37,6 +45,20 @@ export function createMachine(data: {
   initialOut: number;
 }): Promise<Machine> {
   return invoke<Machine>("create_machine", { ...data });
+}
+
+export function updateMachine(data: {
+  machineId: number;
+  numberMachine: string;
+  typeMachineId: number;
+  coinTypeId: number;
+  routeId: number;
+}): Promise<Machine> {
+  return invoke<Machine>("update_machine", { ...data });
+}
+
+export function deleteMachine(machineId: number): Promise<void> {
+  return invoke("delete_machine", { machineId });
 }
 
 export function getRecordsByMachine(
