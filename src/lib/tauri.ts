@@ -1,5 +1,20 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import type { User, Route, Machine, TypeMachine, CoinType, CounterRecordWithCalc } from "../types";
+
+// Tamaño de la ventana antes de entrar: el mismo que declara tauri.conf.json
+const DEFAULT_WINDOW_SIZE = new LogicalSize(900, 600);
+
+export async function maximizeWindow(): Promise<void> {
+  await getCurrentWindow().maximize();
+}
+
+export async function restoreDefaultWindow(): Promise<void> {
+  const win = getCurrentWindow();
+  await win.unmaximize();
+  await win.setSize(DEFAULT_WINDOW_SIZE);
+  await win.center();
+}
 
 export function authenticateUser(
   username: string,
