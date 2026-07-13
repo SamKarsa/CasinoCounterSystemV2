@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Folder } from "lucide-react";
 import type { Route } from "../types";
 
 interface SidebarProps {
@@ -83,13 +84,14 @@ export default function Sidebar({
                     e.preventDefault();
                     setMenu({ x: e.clientX, y: e.clientY, route });
                   }}
-                  className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                  className={`flex w-full items-center gap-2 px-3 py-2 rounded-md text-left text-sm transition-colors ${
                     selectedRouteId === route.routeId
                       ? "bg-white/15 text-white font-medium"
                       : "text-navy-200 hover:bg-white/5 hover:text-white"
                   }`}
                 >
-                  📁 {route.routeName}
+                  <Folder size={16} className="shrink-0" />
+                  <span className="truncate">{route.routeName}</span>
                 </button>
               </li>
             ))}

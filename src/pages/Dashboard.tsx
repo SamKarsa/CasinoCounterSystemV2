@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import MachineForm from "../components/MachineForm";
 import MachineDetail from "./MachineDetail";
@@ -341,9 +342,9 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                                 e.stopPropagation();
                                 setEditingMachine(m);
                               }}
-                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-navy-700 transition-opacity mr-3"
+                              className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-navy-700 transition-opacity mr-3"
                             >
-                              ✏️
+                              <Pencil size={16} />
                             </button>
                             <button
                               type="button"
@@ -353,9 +354,9 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                                 setMachineDeleteError("");
                                 setDeletingMachine(m);
                               }}
-                              className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition-opacity"
+                              className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition-opacity"
                             >
-                              🗑
+                              <Trash2 size={16} />
                             </button>
                           </td>
                         </tr>

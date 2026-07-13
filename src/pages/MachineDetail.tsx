@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-react";
 import {
   getRecordsByMachine,
   createCounterRecord,
@@ -226,9 +227,10 @@ export default function MachineDetail({
         </div>
         <button
           onClick={onBack}
-          className="bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+          className="inline-flex items-center gap-1 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
         >
-          ← Volver
+          <ChevronLeft size={16} />
+          Volver
         </button>
       </div>
 
@@ -302,9 +304,9 @@ export default function MachineDetail({
                                     e.stopPropagation();
                                     startEdit(r);
                                   }}
-                                  className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-navy-700 transition-opacity"
+                                  className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-navy-700 transition-opacity"
                                 >
-                                  ✏️
+                                  <Pencil size={16} />
                                 </button>
                               )}
                             </td>
@@ -344,9 +346,9 @@ export default function MachineDetail({
                                   e.stopPropagation();
                                   startEdit(r);
                                 }}
-                                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-navy-700 transition-opacity mr-3"
+                                className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-navy-700 transition-opacity mr-3"
                               >
-                                ✏️
+                                <Pencil size={16} />
                               </button>
                               <button
                                 type="button"
@@ -355,9 +357,9 @@ export default function MachineDetail({
                                   e.stopPropagation();
                                   setDeletingId(r.counterRecordId);
                                 }}
-                                className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition-opacity"
+                                className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition-opacity"
                               >
-                                🗑
+                                <Trash2 size={16} />
                               </button>
                             </td>
                           </>
@@ -498,9 +500,10 @@ export default function MachineDetail({
                 type="button"
                 onClick={() => hasPrev && goTo(machines[currentIndex - 1])}
                 disabled={!hasPrev}
-                className="bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                ← Anterior
+                <ChevronLeft size={16} />
+                Anterior
               </button>
               <span className="text-xs text-gray-500">
                 {currentIndex >= 0 ? currentIndex + 1 : "—"} de {machines.length}
@@ -509,9 +512,10 @@ export default function MachineDetail({
                 type="button"
                 onClick={() => hasNext && goTo(machines[currentIndex + 1])}
                 disabled={!hasNext}
-                className="bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Siguiente →
+                Siguiente
+                <ChevronRight size={16} />
               </button>
             </div>
           </div>
