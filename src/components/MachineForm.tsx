@@ -104,7 +104,7 @@ export default function MachineForm({
   };
 
   return (
-    <div className="max-w-lg mx-auto mt-8">
+    <div className="max-w-lg mx-auto mt-8 bg-white border border-gray-200 rounded-lg shadow-sm p-8">
       <h2 className="text-2xl font-bold text-navy-900 mb-1 text-center">
         {isEdit ? "Editar máquina" : "Crear Máquina"}
       </h2>

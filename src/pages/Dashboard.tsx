@@ -182,7 +182,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       {/* Área de contenido */}
       <main className="flex-1 overflow-y-auto p-8">
         {showRouteForm ? (
-          <div className="max-w-md mx-auto mt-16">
+          <div className="max-w-md mx-auto mt-16 bg-white border border-gray-200 rounded-lg shadow-sm p-8">
             <h2 className="text-2xl font-bold text-navy-900 mb-6 text-center">
               {editingRoute ? "Editar Ruta" : "Crear Ruta"}
             </h2>
