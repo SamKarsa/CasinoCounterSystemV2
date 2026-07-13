@@ -6,6 +6,7 @@ pub mod auth;
 pub mod machines;
 pub mod records;
 pub mod routes;
+pub mod users;
 
 // Estado global para compartir la conexión a la BD
 pub struct DbConnection(pub Mutex<Connection>);

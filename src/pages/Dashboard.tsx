@@ -3,6 +3,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import Sidebar from "../components/Sidebar";
 import MachineForm from "../components/MachineForm";
 import MachineDetail from "./MachineDetail";
+import UserManagement from "./UserManagement";
 import {
   getAllRoutes,
   createRoute,
@@ -36,6 +37,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [machinesError, setMachinesError] = useState("");
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
   const [machineSearch, setMachineSearch] = useState("");
+  const [showUsers, setShowUsers] = useState(false);
 
   // Diálogos de confirmación de eliminación
   const [deletingRoute, setDeletingRoute] = useState<Route | null>(null);
@@ -109,6 +111,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   };
 
   const handleEditRoute = (route: Route) => {
+    setShowUsers(false);
     setEditingRoute(route);
     setShowCreateRoute(false);
     setNewRouteName(route.routeName);
@@ -167,8 +170,12 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       <Sidebar
         routes={routes}
         selectedRouteId={selectedRouteId}
-        onSelectRoute={setSelectedRouteId}
+        onSelectRoute={(routeId) => {
+          setShowUsers(false);
+          setSelectedRouteId(routeId);
+        }}
         onAddRoute={() => {
+          setShowUsers(false);
           setEditingRoute(null);
           setNewRouteName("");
           setError("");
@@ -179,6 +186,12 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
           setRouteDeleteError("");
           setDeletingRoute(route);
         }}
+        onOpenUsers={() => {
+          setShowCreateRoute(false);
+          setEditingRoute(null);
+          setShowUsers(true);
+        }}
+        showingUsers={showUsers}
         onLogout={onLogout}
         userName={user.userName}
         isAdmin={isAdmin}
@@ -186,7 +199,9 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
 
       {/* Área de contenido */}
       <main className="flex-1 overflow-y-auto p-8">
-        {showRouteForm ? (
+        {showUsers ? (
+          <UserManagement user={user} />
+        ) : showRouteForm ? (
           <div className="max-w-md mx-auto mt-16 bg-white border border-gray-200 rounded-lg shadow-sm p-8">
             <h2 className="text-2xl font-bold text-navy-900 mb-6 text-center">
               {editingRoute ? "Editar Ruta" : "Crear Ruta"}

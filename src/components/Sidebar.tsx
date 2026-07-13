@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Folder } from "lucide-react";
+import { Folder, Users } from "lucide-react";
 import type { Route } from "../types";
 
 interface SidebarProps {
@@ -9,6 +9,8 @@ interface SidebarProps {
   onAddRoute: () => void;
   onEditRoute: (route: Route) => void;
   onDeleteRoute: (route: Route) => void;
+  onOpenUsers: () => void;
+  showingUsers: boolean;
   onLogout: () => void;
   userName: string;
   isAdmin: boolean;
@@ -21,6 +23,8 @@ export default function Sidebar({
   onAddRoute,
   onEditRoute,
   onDeleteRoute,
+  onOpenUsers,
+  showingUsers,
   onLogout,
   userName,
   isAdmin,
@@ -107,6 +111,23 @@ export default function Sidebar({
           </ul>
         )}
       </nav>
+
+      {/* Gestión de usuarios (solo admin) */}
+      {isAdmin && (
+        <div className="px-2 pb-2">
+          <button
+            onClick={onOpenUsers}
+            className={`flex w-full items-center gap-2 px-3 py-2 rounded-md text-left text-sm transition-colors ${
+              showingUsers
+                ? "bg-white/15 text-white font-medium"
+                : "text-navy-200 hover:bg-white/5 hover:text-white"
+            }`}
+          >
+            <Users size={16} className="shrink-0" />
+            Usuarios
+          </button>
+        </div>
+      )}
 
       {/* Usuario + logout */}
       <div className="px-4 py-3 border-t border-white/10 flex items-center justify-between">

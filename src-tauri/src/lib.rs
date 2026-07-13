@@ -38,6 +38,9 @@ pub fn run() {
             commands::records::create_counter_record,
             commands::records::update_counter_record,
             commands::records::delete_counter_record,
+            commands::users::change_own_password,
+            commands::users::get_operator,
+            commands::users::update_operator,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

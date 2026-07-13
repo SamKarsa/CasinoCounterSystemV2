@@ -23,6 +23,26 @@ export function authenticateUser(
   return invoke<User>("authenticate_user", { username, password });
 }
 
+export function changeOwnPassword(
+  userId: number,
+  currentPassword: string,
+  newPassword: string
+): Promise<void> {
+  return invoke("change_own_password", { userId, currentPassword, newPassword });
+}
+
+export function getOperator(): Promise<User> {
+  return invoke<User>("get_operator");
+}
+
+// newPassword vacío o null = no cambiar la contraseña
+export function updateOperator(
+  userName: string,
+  newPassword: string | null
+): Promise<User> {
+  return invoke<User>("update_operator", { userName, newPassword });
+}
+
 export function getAllRoutes(): Promise<Route[]> {
   return invoke<Route[]>("get_all_routes");
 }
