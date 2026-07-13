@@ -19,6 +19,10 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ user, onLogout }: DashboardProps) {
+  // Única barrera de permisos por ahora: la UI oculta lo que el operador no
+  // puede hacer (crear/editar/eliminar rutas y máquinas, eliminar registros).
+  const isAdmin = user.roleName === "Admin";
+
   const [routes, setRoutes] = useState<Route[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<number | null>(null);
   const [showCreateRoute, setShowCreateRoute] = useState(false);
@@ -177,6 +181,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
         }}
         onLogout={onLogout}
         userName={user.userName}
+        isAdmin={isAdmin}
       />
 
       {/* Área de contenido */}
@@ -225,6 +230,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
               machines={machines}
               onNavigate={setSelectedMachine}
               onBack={() => setSelectedMachine(null)}
+              isAdmin={isAdmin}
             />
           ) : editingMachine ? (
             <MachineForm
@@ -279,12 +285,14 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                     placeholder="Buscar máquina..."
                     className="w-48 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
                   />
-                  <button
-                    onClick={() => setShowCreateMachine(true)}
-                    className="bg-navy-900 text-white px-4 py-2 rounded-md font-medium hover:bg-navy-800 transition-colors whitespace-nowrap"
-                  >
-                    + Agregar máquina
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => setShowCreateMachine(true)}
+                      className="bg-navy-900 text-white px-4 py-2 rounded-md font-medium hover:bg-navy-800 transition-colors whitespace-nowrap"
+                    >
+                      + Agregar máquina
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -299,9 +307,11 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
               ) : machines.length === 0 ? (
                 <div className="text-center py-16 text-gray-400">
                   <p className="text-lg mb-1">Esta ruta no tiene máquinas</p>
-                  <p className="text-sm">
-                    Agregá la primera con el botón de arriba
-                  </p>
+                  {isAdmin && (
+                    <p className="text-sm">
+                      Agregá la primera con el botón de arriba
+                    </p>
+                  )}
                 </div>
               ) : filteredMachines.length === 0 ? (
                 <div className="text-center py-16 text-gray-400">
@@ -315,7 +325,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                         <th className="px-4 py-3 font-medium">Número</th>
                         <th className="px-4 py-3 font-medium">Tipo</th>
                         <th className="px-4 py-3 font-medium">Moneda</th>
-                        <th className="px-2 py-3 w-16"></th>
+                        {isAdmin && <th className="px-2 py-3 w-16"></th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -334,31 +344,33 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                           <td className="px-4 py-3 text-gray-600">
                             {m.numCoin !== null ? `$${m.numCoin}` : "—"}
                           </td>
-                          <td className="px-2 py-3 text-right whitespace-nowrap">
-                            <button
-                              type="button"
-                              title="Editar máquina"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingMachine(m);
-                              }}
-                              className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-navy-700 transition-opacity mr-3"
-                            >
-                              <Pencil size={16} />
-                            </button>
-                            <button
-                              type="button"
-                              title="Eliminar máquina"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setMachineDeleteError("");
-                                setDeletingMachine(m);
-                              }}
-                              className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition-opacity"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </td>
+                          {isAdmin && (
+                            <td className="px-2 py-3 text-right whitespace-nowrap">
+                              <button
+                                type="button"
+                                title="Editar máquina"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingMachine(m);
+                                }}
+                                className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-navy-700 transition-opacity mr-3"
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              <button
+                                type="button"
+                                title="Eliminar máquina"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setMachineDeleteError("");
+                                  setDeletingMachine(m);
+                                }}
+                                className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition-opacity"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>

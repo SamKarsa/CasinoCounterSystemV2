@@ -13,6 +13,7 @@ interface MachineDetailProps {
   machines: Machine[];
   onNavigate: (machine: Machine) => void;
   onBack: () => void;
+  isAdmin: boolean;
 }
 
 // Formato de moneda para mostrar (ej: 10,000)
@@ -32,6 +33,7 @@ export default function MachineDetail({
   machines,
   onNavigate,
   onBack,
+  isAdmin,
 }: MachineDetailProps) {
   const [records, setRecords] = useState<CounterRecordWithCalc[]>([]);
   const [loading, setLoading] = useState(true);
@@ -346,21 +348,25 @@ export default function MachineDetail({
                                   e.stopPropagation();
                                   startEdit(r);
                                 }}
-                                className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-navy-700 transition-opacity mr-3"
+                                className={`inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-navy-700 transition-opacity ${
+                                  isAdmin ? "mr-3" : ""
+                                }`}
                               >
                                 <Pencil size={16} />
                               </button>
-                              <button
-                                type="button"
-                                title="Eliminar registro"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeletingId(r.counterRecordId);
-                                }}
-                                className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition-opacity"
-                              >
-                                <Trash2 size={16} />
-                              </button>
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  title="Eliminar registro"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeletingId(r.counterRecordId);
+                                  }}
+                                  className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition-opacity"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
                             </td>
                           </>
                         )}

@@ -11,6 +11,7 @@ interface SidebarProps {
   onDeleteRoute: (route: Route) => void;
   onLogout: () => void;
   userName: string;
+  isAdmin: boolean;
 }
 
 export default function Sidebar({
@@ -22,6 +23,7 @@ export default function Sidebar({
   onDeleteRoute,
   onLogout,
   userName,
+  isAdmin,
 }: SidebarProps) {
   // Menú contextual (clic derecho) sobre una ruta
   const [menu, setMenu] = useState<{ x: number; y: number; route: Route } | null>(
@@ -59,20 +61,26 @@ export default function Sidebar({
           <span className="text-navy-300 text-xs font-semibold uppercase tracking-wide">
             Rutas
           </span>
-          <button
-            onClick={onAddRoute}
-            title="Agregar ruta"
-            className="text-navy-300 hover:text-white text-lg leading-none px-1 rounded transition-colors"
-          >
-            +
-          </button>
+          {isAdmin && (
+            <button
+              onClick={onAddRoute}
+              title="Agregar ruta"
+              className="text-navy-300 hover:text-white text-lg leading-none px-1 rounded transition-colors"
+            >
+              +
+            </button>
+          )}
         </div>
 
         {routes.length === 0 ? (
           <p className="text-navy-400 text-sm px-2 py-4 text-center">
             No hay rutas todavía.
-            <br />
-            Creá la primera con el +
+            {isAdmin && (
+              <>
+                <br />
+                Creá la primera con el +
+              </>
+            )}
           </p>
         ) : (
           <ul className="space-y-0.5">
@@ -81,6 +89,7 @@ export default function Sidebar({
                 <button
                   onClick={() => onSelectRoute(route.routeId)}
                   onContextMenu={(e) => {
+                    if (!isAdmin) return;
                     e.preventDefault();
                     setMenu({ x: e.clientX, y: e.clientY, route });
                   }}

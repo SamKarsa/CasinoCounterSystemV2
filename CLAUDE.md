@@ -23,6 +23,23 @@ IN-OUT as (Δout) * coinValue (only the OUT counter). All other types
 use ((Δin) - (Δout)) * coinValue. The comparison is by
 nameTypeMachine = 'Poker' — do not rename that seed row.
 
+**Permissions.** Two roles seeded in `Role`: `Admin` and `Counter Operator`. The
+operator is the data-entry person — they type records, nothing else:
+
+| Action | Admin | Counter Operator |
+| --- | --- | --- |
+| View routes, machines, records | yes | yes |
+| Create / edit records | yes | yes |
+| Delete records | yes | **no** |
+| Create / edit / delete routes | yes | **no** |
+| Create / edit / delete machines | yes | **no** |
+
+Enforced **only in the frontend**: `Dashboard` derives `isAdmin = user.roleName === "Admin"`
+and passes it down to `Sidebar` and `MachineDetail`, which *hide* (not disable) the
+forbidden controls. The Tauri commands are unguarded — the app is local, single-user,
+and the threat model is a distracted operator, not an attacker. If that assumption ever
+changes (shared PC, remote DB), the check must move into the commands layer.
+
 ## Architecture
 
 Tauri 2 desktop app with a React 19 + TypeScript frontend and a Rust backend.
