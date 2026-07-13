@@ -1,5 +1,5 @@
 use super::*;
-use crate::database::models::CounterRecordWithCalc;
+use crate::database::models::{CounterRecordWithCalc, RouteSummary, RouteSummaryMachine};
 use chrono::NaiveDate;
 use rusqlite::{params, OptionalExtension};
 
@@ -459,4 +459,174 @@ pub fn delete_counter_record(
     })?;
 
     Ok(())
+}
+
+#[tauri::command]
+pub fn get_route_summary(
+    route_id: i64,
+    from_date: String,
+    to_date: String,
+    db: State<DbConnection>,
+) -> Result<RouteSummary, String> {
+    let invalid_range = || "El rango de fechas no es válido".to_string();
+
+    let from = NaiveDate::parse_from_str(from_date.trim(), DATE_FMT).map_err(|_| invalid_range())?;
+    let to = NaiveDate::parse_from_str(to_date.trim(), DATE_FMT).map_err(|_| invalid_range())?;
+    if from > to {
+        return Err(invalid_range());
+    }
+
+    // Formato canónico: las fechas se guardan así, y la comparación del rango se
+    // hace como texto (mismo criterio que el ORDER BY recordDate del esquema).
+    let from_date = from.format(DATE_FMT).to_string();
+    let to_date = to.format(DATE_FMT).to_string();
+
+    let conn = db
+        .0
+        .lock()
+        .map_err(|e| format!("DB lock poisoned: {}", e))?;
+
+    let route_name: Option<String> = conn
+        .query_row(
+            "SELECT routeName FROM Route WHERE routeId = ?1",
+            [route_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| {
+            eprintln!("records: route lookup failed: {}", e);
+            "No se pudo cargar el resumen".to_string()
+        })?;
+
+    let route_name = route_name.ok_or_else(|| "La ruta no existe".to_string())?;
+
+    // numCoin y el flag de Poker vienen en la misma consulta: evita un
+    // machine_calc_info por máquina (~120 por ruta).
+    let mut machines_stmt = conn
+        .prepare(
+            "SELECT m.machineId, m.numberMachine, t.nameTypeMachine, c.numCoin,
+                    t.nameTypeMachine = 'Poker'
+             FROM Machine m
+             INNER JOIN CoinType c ON m.coinTypeId = c.coinTypeId
+             INNER JOIN TypeMachine t ON m.typeMachineId = t.typeMachineId
+             WHERE m.routeId = ?1
+             ORDER BY m.numberMachine",
+        )
+        .map_err(|e| {
+            eprintln!("records: failed to prepare machines statement: {}", e);
+            "No se pudo cargar el resumen".to_string()
+        })?;
+
+    let machine_rows = machines_stmt
+        .query_map([route_id], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, Option<String>>(2)?,
+                row.get::<_, i64>(3)?,
+                row.get::<_, i64>(4)? != 0,
+            ))
+        })
+        .map_err(|e| {
+            eprintln!("records: machines query failed: {}", e);
+            "No se pudo cargar el resumen".to_string()
+        })?;
+
+    let mut machines_info = Vec::new();
+    for row in machine_rows {
+        machines_info.push(row.map_err(|e| {
+            eprintln!("records: failed to read machine row: {}", e);
+            "No se pudo cargar el resumen".to_string()
+        })?);
+    }
+
+    let mut records_stmt = conn
+        .prepare(
+            "SELECT counterRecordId, recordDate, counterIn, counterOut,
+                    totalDelivered, isBaseline
+             FROM CounterRecord
+             WHERE machineId = ?1
+             ORDER BY recordDate ASC, counterRecordId ASC",
+        )
+        .map_err(|e| {
+            eprintln!("records: failed to prepare records statement: {}", e);
+            "No se pudo cargar el resumen".to_string()
+        })?;
+
+    let mut machines = Vec::with_capacity(machines_info.len());
+
+    for (machine_id, number_machine, type_machine_name, num_coin, is_poker) in machines_info {
+        // Se cargan TODOS los registros de la máquina, no solo los del rango: cada
+        // uno se calcula contra su anterior real, que puede quedar fuera del rango.
+        let rows = records_stmt
+            .query_map([machine_id], map_raw_record)
+            .map_err(|e| {
+                eprintln!("records: records query failed: {}", e);
+                "No se pudo cargar el resumen".to_string()
+            })?;
+
+        let mut raws: Vec<RawRecord> = Vec::new();
+        for row in rows {
+            raws.push(row.map_err(|e| {
+                eprintln!("records: failed to read record row: {}", e);
+                "No se pudo cargar el resumen".to_string()
+            })?);
+        }
+
+        let mut in_out = 0.0;
+        let mut total = 0.0;
+        let mut saldo = 0.0;
+        let mut falta_sobra = 0.0;
+        let mut liquidated = false;
+
+        for i in 0..raws.len() {
+            let prev = if i > 0 { Some(&raws[i - 1]) } else { None };
+            let calc = calculate_record(&raws[i], prev, num_coin, is_poker);
+
+            if calc.is_baseline
+                || calc.record_date < from_date
+                || calc.record_date > to_date
+            {
+                continue;
+            }
+
+            liquidated = true;
+            in_out += calc.in_out.unwrap_or(0.0);
+            total += calc.total_delivered;
+            saldo += calc.saldo.unwrap_or(0.0);
+            falta_sobra += calc.falta_sobra.unwrap_or(0.0);
+        }
+
+        machines.push(RouteSummaryMachine {
+            machine_id,
+            number_machine,
+            type_machine_name,
+            liquidated,
+            in_out,
+            total,
+            saldo,
+            falta_sobra,
+        });
+    }
+
+    let machines_total = machines.len() as i64;
+    let machines_liquidated = machines.iter().filter(|m| m.liquidated).count() as i64;
+    let total_in_out = machines.iter().map(|m| m.in_out).sum();
+    let total_delivered = machines.iter().map(|m| m.total).sum();
+    let total_saldo = machines.iter().map(|m| m.saldo).sum();
+    let total_falta_sobra = machines.iter().map(|m| m.falta_sobra).sum();
+
+    Ok(RouteSummary {
+        route_id,
+        route_name,
+        from_date,
+        to_date,
+        machines,
+        total_in_out,
+        total_delivered,
+        total_saldo,
+        total_falta_sobra,
+        machines_liquidated,
+        machines_total,
+    })
 }

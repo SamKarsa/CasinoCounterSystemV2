@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
-import type { User, Route, Machine, TypeMachine, CoinType, CounterRecordWithCalc } from "../types";
+import type { User, Route, Machine, TypeMachine, CoinType, CounterRecordWithCalc, RouteSummary } from "../types";
 
 // Tamaño de la ventana antes de entrar: el mismo que declara tauri.conf.json
 const DEFAULT_WINDOW_SIZE = new LogicalSize(900, 600);
@@ -126,4 +126,16 @@ export function updateCounterRecord(data: {
 
 export function deleteCounterRecord(counterRecordId: number): Promise<void> {
   return invoke("delete_counter_record", { counterRecordId });
+}
+
+export function getRouteSummary(
+  routeId: number,
+  fromDate: string,
+  toDate: string
+): Promise<RouteSummary> {
+  return invoke<RouteSummary>("get_route_summary", {
+    routeId,
+    fromDate,
+    toDate,
+  });
 }

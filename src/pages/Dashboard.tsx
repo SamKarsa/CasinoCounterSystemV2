@@ -4,6 +4,7 @@ import Sidebar from "../components/Sidebar";
 import MachineForm from "../components/MachineForm";
 import MachineDetail from "./MachineDetail";
 import UserManagement from "./UserManagement";
+import RouteSummary from "./RouteSummary";
 import {
   getAllRoutes,
   createRoute,
@@ -38,6 +39,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
   const [selectedMachine, setSelectedMachine] = useState<Machine | null>(null);
   const [machineSearch, setMachineSearch] = useState("");
   const [showUsers, setShowUsers] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
 
   // Diálogos de confirmación de eliminación
   const [deletingRoute, setDeletingRoute] = useState<Route | null>(null);
@@ -67,6 +69,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
     setShowCreateMachine(false);
     setEditingMachine(null);
     setSelectedMachine(null);
+    setShowSummary(false);
     setMachineSearch("");
     getMachinesByRoute(selectedRouteId)
       .then(setMachines)
@@ -239,7 +242,12 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
             </form>
           </div>
         ) : selectedRoute ? (
-          selectedMachine ? (
+          showSummary ? (
+            <RouteSummary
+              route={selectedRoute}
+              onBack={() => setShowSummary(false)}
+            />
+          ) : selectedMachine ? (
             <MachineDetail
               machine={selectedMachine}
               machines={machines}
@@ -300,6 +308,12 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                     placeholder="Buscar máquina..."
                     className="w-48 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
                   />
+                  <button
+                    onClick={() => setShowSummary(true)}
+                    className="bg-gray-200 text-gray-700 px-4 py-2 rounded-md font-medium hover:bg-gray-300 transition-colors whitespace-nowrap"
+                  >
+                    Resumen
+                  </button>
                   {isAdmin && (
                     <button
                       onClick={() => setShowCreateMachine(true)}

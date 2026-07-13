@@ -56,6 +56,38 @@ pub struct CounterRecordWithCalc {
     pub falta_sobra: Option<f64>,
 }
 
+// Una máquina dentro del resumen de una ruta: sus liquidaciones del período ya
+// sumadas. liquidated = false cuando no tuvo ningún registro en el rango (las
+// sumas quedan en 0).
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RouteSummaryMachine {
+    pub machine_id: i64,
+    pub number_machine: String,
+    pub type_machine_name: Option<String>,
+    pub liquidated: bool,
+    pub in_out: f64,
+    pub total: f64,
+    pub saldo: f64,
+    pub falta_sobra: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RouteSummary {
+    pub route_id: i64,
+    pub route_name: String,
+    pub from_date: String,
+    pub to_date: String,
+    pub machines: Vec<RouteSummaryMachine>,
+    pub total_in_out: f64,
+    pub total_delivered: f64,
+    pub total_saldo: f64,
+    pub total_falta_sobra: f64,
+    pub machines_liquidated: i64,
+    pub machines_total: i64,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TypeMachine {

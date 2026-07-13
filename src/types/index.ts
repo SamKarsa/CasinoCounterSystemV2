@@ -31,6 +31,32 @@ export interface CounterRecord {
     machineId: number;
 }
 
+export interface RouteSummaryMachine {
+    machineId: number;
+    numberMachine: string;
+    typeMachineName: string | null;
+    // false = la máquina no tuvo registros en el período (sumas en 0)
+    liquidated: boolean;
+    inOut: number;
+    total: number;
+    saldo: number;
+    faltaSobra: number;
+}
+
+export interface RouteSummary {
+    routeId: number;
+    routeName: string;
+    fromDate: string;
+    toDate: string;
+    machines: RouteSummaryMachine[];
+    totalInOut: number;
+    totalDelivered: number;
+    totalSaldo: number;
+    totalFaltaSobra: number;
+    machinesLiquidated: number;
+    machinesTotal: number;
+}
+
 export interface TypeMachine {
     typeMachineId: number;
     nameTypeMachine: string;
