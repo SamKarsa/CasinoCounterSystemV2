@@ -8,6 +8,13 @@ interface RouteSummaryProps {
   onBack: () => void;
 }
 
+// Encabezado pegado al borde superior del <main> scrolleable. El fondo va en el
+// th (el del tr no viaja con la celda sticky) y las esquinas se redondean acá
+// porque la tarjeta ya no puede recortar con overflow-hidden: eso rompería el
+// sticky al convertirse en el contenedor de scroll más cercano.
+const th =
+  "sticky top-0 z-10 bg-navy-900 py-3 font-medium first:rounded-tl-lg last:rounded-tr-lg";
+
 // Mismo formato de moneda que el detalle de máquina (ej: 10,000)
 const fmt = (n: number) =>
   n.toLocaleString("es-CO", { maximumFractionDigits: 2 });
@@ -197,18 +204,16 @@ export default function RouteSummary({ route, onBack }: RouteSummaryProps) {
               <p className="text-lg">Esta ruta no tiene máquinas</p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-lg border border-gray-200">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-navy-900 text-white text-left">
-                    <th className="px-4 py-3 font-medium">Número</th>
-                    <th className="px-4 py-3 font-medium">Tipo</th>
-                    <th className="px-4 py-3 font-medium text-right">IN-OUT</th>
-                    <th className="px-4 py-3 font-medium text-right">Total</th>
-                    <th className="px-4 py-3 font-medium text-right">Saldo</th>
-                    <th className="px-4 py-3 font-medium text-right">
-                      Falta/Sobra
-                    </th>
+                  <tr className="text-white text-left">
+                    <th className={`${th} px-4`}>Número</th>
+                    <th className={`${th} px-4`}>Tipo</th>
+                    <th className={`${th} px-4 text-right`}>IN-OUT</th>
+                    <th className={`${th} px-4 text-right`}>Total</th>
+                    <th className={`${th} px-4 text-right`}>Saldo</th>
+                    <th className={`${th} px-4 text-right`}>Falta/Sobra</th>
                   </tr>
                 </thead>
                 <tbody>

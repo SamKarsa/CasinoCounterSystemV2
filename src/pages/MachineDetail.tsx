@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-react";
 import {
   getRecordsByMachine,
@@ -15,6 +15,10 @@ interface MachineDetailProps {
   onBack: () => void;
   isAdmin: boolean;
 }
+
+// Encabezado pegado al scrollear: el fondo va en el th (el del tr no viaja con
+// la celda sticky) y z-10 lo mantiene por encima de las filas.
+const th = "sticky top-0 z-10 bg-navy-900 py-2.5 font-medium";
 
 // Formato de moneda para mostrar (ej: 10,000)
 const fmt = (n: number) =>
@@ -53,10 +57,21 @@ export default function MachineDetail({
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Tabla: scroll al fondo al cargar y resaltado de la fila recién guardada
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  // nonce: guardar dos veces la misma fila debe volver a disparar el resaltado
+  const [highlight, setHighlight] = useState<{
+    id: number;
+    nonce: number;
+  } | null>(null);
+  const flashRow = (id: number) =>
+    setHighlight((prev) => ({ id, nonce: (prev?.nonce ?? 0) + 1 }));
+
   useEffect(() => {
     // Al cambiar de máquina, salir de cualquier modo edición/eliminación
     setEditingId(null);
     setDeletingId(null);
+    setHighlight(null);
     setLoading(true);
     getRecordsByMachine(machine.machineId)
       .then(setRecords)
@@ -65,6 +80,23 @@ export default function MachineDetail({
       )
       .finally(() => setLoading(false));
   }, [machine.machineId]);
+
+  // Los registros más recientes están al final: arrancar abajo, sin animación
+  useLayoutEffect(() => {
+    if (loading) return;
+    const el = tableScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [loading, machine.machineId]);
+
+  // Tras guardar: llevar la fila a la vista (solo si quedó fuera) y resaltarla ~2s
+  useEffect(() => {
+    if (!highlight) return;
+    tableScrollRef.current
+      ?.querySelector(`[data-record-id="${highlight.id}"]`)
+      ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    const timer = setTimeout(() => setHighlight(null), 2000);
+    return () => clearTimeout(timer);
+  }, [highlight]);
 
   const lastRecord = records.length > 0 ? records[records.length - 1] : null;
 
@@ -131,8 +163,9 @@ export default function MachineDetail({
     setSaving(true);
     try {
       if (editingId !== null) {
+        const editedId = editingId;
         await updateCounterRecord({
-          counterRecordId: editingId,
+          counterRecordId: editedId,
           recordDate,
           counterIn: parseInt(inValue, 10),
           counterOut: parseInt(outValue, 10),
@@ -142,6 +175,7 @@ export default function MachineDetail({
         const fresh = await getRecordsByMachine(machine.machineId);
         setRecords(fresh);
         exitEdit();
+        flashRow(editedId);
       } else {
         const record = await createCounterRecord({
           machineId: machine.machineId,
@@ -151,6 +185,7 @@ export default function MachineDetail({
           totalDelivered: parseFloat(totalValue),
         });
         setRecords((prev) => [...prev, record]);
+        flashRow(record.counterRecordId);
         setInValue("");
         setOutValue("");
         setTotalValue("");
@@ -244,40 +279,43 @@ export default function MachineDetail({
 
       <div className="flex gap-6 flex-1 min-h-0">
         {/* Tabla de registros */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 min-h-0">
           {loading ? (
             <p className="text-gray-400">Cargando registros...</p>
           ) : (
-            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            // El scroll vive en la tarjeta: el thead sticky se ancla a ella.
+            // Su overflow recorta las esquinas redondeadas del header pegado.
+            <div
+              ref={tableScrollRef}
+              className="max-h-full overflow-y-auto bg-white rounded-lg border border-gray-200"
+            >
               <table className="w-full text-sm">
-                <thead className="sticky top-0">
-                  <tr className="bg-navy-900 text-white text-left">
-                    <th className="px-3 py-2.5 font-medium">Fecha</th>
-                    <th className="px-3 py-2.5 font-medium text-right">IN</th>
-                    <th className="px-3 py-2.5 font-medium text-right">OUT</th>
-                    <th className="px-3 py-2.5 font-medium text-right">
-                      IN-OUT
-                    </th>
-                    <th className="px-3 py-2.5 font-medium text-right">
-                      Total
-                    </th>
-                    <th className="px-3 py-2.5 font-medium text-right">
-                      Saldo
-                    </th>
-                    <th className="px-3 py-2.5 font-medium text-right">
-                      Falta/Sobra
-                    </th>
-                    <th className="px-2 py-2.5 w-16"></th>
+                <thead>
+                  <tr className="text-white text-left">
+                    <th className={`${th} px-3`}>Fecha</th>
+                    <th className={`${th} px-3 text-right`}>IN</th>
+                    <th className={`${th} px-3 text-right`}>OUT</th>
+                    <th className={`${th} px-3 text-right`}>IN-OUT</th>
+                    <th className={`${th} px-3 text-right`}>Total</th>
+                    <th className={`${th} px-3 text-right`}>Saldo</th>
+                    <th className={`${th} px-3 text-right`}>Falta/Sobra</th>
+                    <th className={`${th} px-2 w-16`}></th>
                   </tr>
                 </thead>
                 <tbody>
                   {records.map((r) => {
                     const isEditing = r.counterRecordId === editingId;
+                    const isHighlighted = r.counterRecordId === highlight?.id;
                     return (
                       <tr
                         key={r.counterRecordId}
-                        className={`group border-t border-gray-100 hover:bg-navy-50 ${
-                          isEditing ? "bg-navy-50" : ""
+                        data-record-id={r.counterRecordId}
+                        className={`group border-t border-gray-100 transition-colors duration-500 hover:bg-navy-50 ${
+                          isHighlighted
+                            ? "bg-green-50"
+                            : isEditing
+                            ? "bg-navy-50"
+                            : ""
                         }`}
                       >
                         <td className="px-3 py-2.5 text-gray-700">

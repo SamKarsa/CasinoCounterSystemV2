@@ -609,6 +609,9 @@ pub fn get_route_summary(
         });
     }
 
+    // Orden natural (A2 < A10 < A100); el ORDER BY del SQL es solo un pre-orden
+    machines.sort_by(|a, b| natural_cmp(&a.number_machine, &b.number_machine));
+
     let machines_total = machines.len() as i64;
     let machines_liquidated = machines.iter().filter(|m| m.liquidated).count() as i64;
     let total_in_out = machines.iter().map(|m| m.in_out).sum();

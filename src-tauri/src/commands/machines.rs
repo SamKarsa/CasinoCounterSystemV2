@@ -107,6 +107,8 @@ pub fn get_machines_by_route(route_id: i64, db: State<DbConnection>) -> Result<V
         .lock()
         .map_err(|e| format!("DB lock poisoned: {}", e))?;
 
+    // El ORDER BY es solo un pre-orden: el orden final lo da natural_cmp, que
+    // SQLite no sabe hacer (para él "A100" va antes que "A11").
     let sql = format!("{} WHERE m.routeId = ?1 ORDER BY m.numberMachine", MACHINE_SELECT);
 
     let mut stmt = conn.prepare(&sql).map_err(|e| {
@@ -126,6 +128,8 @@ pub fn get_machines_by_route(route_id: i64, db: State<DbConnection>) -> Result<V
             "No se pudieron cargar las máquinas".to_string()
         })?);
     }
+
+    machines.sort_by(|a, b| natural_cmp(&a.number_machine, &b.number_machine));
 
     Ok(machines)
 }

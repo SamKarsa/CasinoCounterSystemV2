@@ -20,6 +20,21 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
+// Encabezado pegado al borde superior del <main> scrolleable. El fondo va en el
+// th (el del tr no viaja con la celda sticky) y las esquinas se redondean acá
+// porque la tarjeta ya no puede recortar con overflow-hidden: eso rompería el
+// sticky al convertirse en el contenedor de scroll más cercano.
+const th =
+  "sticky top-0 z-10 bg-navy-900 py-3 font-medium first:rounded-tl-lg last:rounded-tr-lg";
+
+// Orden natural: A2 < A10 < A100. Debe coincidir con natural_cmp del backend,
+// que es quien ordena la lista que llega de get_machines_by_route.
+const byMachineNumber = (a: Machine, b: Machine) =>
+  a.numberMachine.localeCompare(b.numberMachine, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+
 export default function Dashboard({ user, onLogout }: DashboardProps) {
   // Única barrera de permisos por ahora: la UI oculta lo que el operador no
   // puede hacer (crear/editar/eliminar rutas y máquinas, eliminar registros).
@@ -272,9 +287,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                     updated.routeId === selectedRoute.routeId
                       ? [...rest, updated]
                       : rest;
-                  return next.sort((a, b) =>
-                    a.numberMachine.localeCompare(b.numberMachine)
-                  );
+                  return next.sort(byMachineNumber);
                 });
                 setEditingMachine(null);
               }}
@@ -285,11 +298,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
               routeId={selectedRoute.routeId}
               routeName={selectedRoute.routeName}
               onCreated={(machine) => {
-                setMachines((prev) =>
-                  [...prev, machine].sort((a, b) =>
-                    a.numberMachine.localeCompare(b.numberMachine)
-                  )
-                );
+                setMachines((prev) => [...prev, machine].sort(byMachineNumber));
                 setShowCreateMachine(false);
               }}
               onCancel={() => setShowCreateMachine(false)}
@@ -347,14 +356,14 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                   <p className="text-lg">No hay máquinas que coincidan</p>
                 </div>
               ) : (
-                <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div className="bg-white rounded-lg border border-gray-200">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="bg-navy-900 text-white text-left">
-                        <th className="px-4 py-3 font-medium">Número</th>
-                        <th className="px-4 py-3 font-medium">Tipo</th>
-                        <th className="px-4 py-3 font-medium">Moneda</th>
-                        {isAdmin && <th className="px-2 py-3 w-16"></th>}
+                      <tr className="text-white text-left">
+                        <th className={`${th} px-4`}>Número</th>
+                        <th className={`${th} px-4`}>Tipo</th>
+                        <th className={`${th} px-4`}>Moneda</th>
+                        {isAdmin && <th className={`${th} px-2 w-16`}></th>}
                       </tr>
                     </thead>
                     <tbody>
