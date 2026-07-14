@@ -92,6 +92,23 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       .finally(() => setLoadingMachines(false));
   }, [selectedRouteId]);
 
+  // Clickear una ruta siempre lleva a su lista de máquinas, incluso si ya era la
+  // seleccionada: ahí el useEffect no corre (el id no cambia) y hay que cerrar a
+  // mano la vista interna abierta. Si es otra ruta la limpieza se repite, pero
+  // así no dependemos de que el efecto sea el único que limpia.
+  const handleSelectRoute = (routeId: number) => {
+    setShowUsers(false);
+    setShowCreateRoute(false);
+    setEditingRoute(null);
+    setNewRouteName("");
+    setError("");
+    setSelectedMachine(null);
+    setShowCreateMachine(false);
+    setEditingMachine(null);
+    setShowSummary(false);
+    setSelectedRouteId(routeId);
+  };
+
   const handleRouteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -188,10 +205,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       <Sidebar
         routes={routes}
         selectedRouteId={selectedRouteId}
-        onSelectRoute={(routeId) => {
-          setShowUsers(false);
-          setSelectedRouteId(routeId);
-        }}
+        onSelectRoute={handleSelectRoute}
         onAddRoute={() => {
           setShowUsers(false);
           setEditingRoute(null);
