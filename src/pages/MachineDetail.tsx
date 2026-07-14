@@ -18,7 +18,8 @@ interface MachineDetailProps {
 
 // Encabezado pegado al scrollear: el fondo va en el th (el del tr no viaja con
 // la celda sticky) y z-10 lo mantiene por encima de las filas.
-const th = "sticky top-0 z-10 bg-navy-900 py-2.5 font-medium";
+const th =
+  "sticky top-0 z-10 bg-navy-900 py-2.5 font-mono text-[11px] font-medium uppercase tracking-wider";
 
 // Formato de moneda para mostrar (ej: 10,000)
 const fmt = (n: number) =>
@@ -287,7 +288,7 @@ export default function MachineDetail({
             // Su overflow recorta las esquinas redondeadas del header pegado.
             <div
               ref={tableScrollRef}
-              className="max-h-full overflow-y-auto bg-white rounded-lg border border-gray-200"
+              className="max-h-full overflow-y-auto bg-white rounded border border-gray-200"
             >
               <table className="w-full text-sm">
                 <thead>
@@ -419,7 +420,7 @@ export default function MachineDetail({
 
         {/* Panel de nuevo registro */}
         <aside className="w-72 shrink-0">
-          <div className="bg-white rounded-lg border border-gray-200 p-4 sticky top-0">
+          <div className="bg-white rounded border border-gray-200 p-4 sticky top-0">
             <h3 className="font-semibold text-navy-900 mb-3">
               {editingId !== null ? "Editar registro" : "Nuevo registro"}
             </h3>
@@ -569,7 +570,7 @@ export default function MachineDetail({
       {/* Confirmación de eliminación (diálogo propio, no window.confirm) */}
       {deletingRecord && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+          <div className="w-full max-w-sm rounded bg-white p-6 shadow-xl">
             <h3 className="font-semibold text-navy-900 mb-2">
               Eliminar registro
             </h3>

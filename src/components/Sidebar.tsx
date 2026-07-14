@@ -62,7 +62,7 @@ export default function Sidebar({
       {/* Lista de rutas */}
       <nav className="flex-1 overflow-y-auto px-2 py-3">
         <div className="flex items-center justify-between px-2 mb-2">
-          <span className="text-navy-300 text-xs font-semibold uppercase tracking-wide">
+          <span className="text-brass-400 text-xs font-semibold uppercase tracking-wide">
             Rutas
           </span>
           {isAdmin && (

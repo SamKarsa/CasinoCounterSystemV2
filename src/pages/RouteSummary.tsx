@@ -13,7 +13,7 @@ interface RouteSummaryProps {
 // porque la tarjeta ya no puede recortar con overflow-hidden: eso rompería el
 // sticky al convertirse en el contenedor de scroll más cercano.
 const th =
-  "sticky top-0 z-10 bg-navy-900 py-3 font-medium first:rounded-tl-lg last:rounded-tr-lg";
+  "sticky top-0 z-10 bg-navy-900 py-3 font-mono text-[11px] font-medium uppercase tracking-wider first:rounded-tl last:rounded-tr";
 
 // Mismo formato de moneda que el detalle de máquina (ej: 10,000)
 const fmt = (n: number) =>
@@ -145,7 +145,7 @@ export default function RouteSummary({ route, onBack }: RouteSummaryProps) {
           {/* Totales del período */}
           <div className="grid grid-cols-4 gap-4 mb-2">
             <div
-              className={`rounded-lg border p-4 ${
+              className={`rounded border p-4 ${
                 summary.totalFaltaSobra < 0
                   ? "bg-red-50 border-red-200"
                   : "bg-green-50 border-green-200"
@@ -167,7 +167,7 @@ export default function RouteSummary({ route, onBack }: RouteSummaryProps) {
                 {fmt(summary.totalFaltaSobra)}
               </p>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="bg-white rounded border border-gray-200 p-4">
               <p className="text-xs font-medium text-gray-500 mb-1">
                 Total entregado
               </p>
@@ -175,7 +175,7 @@ export default function RouteSummary({ route, onBack }: RouteSummaryProps) {
                 {fmt(summary.totalDelivered)}
               </p>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="bg-white rounded border border-gray-200 p-4">
               <p className="text-xs font-medium text-gray-500 mb-1">
                 Saldo total
               </p>
@@ -183,7 +183,7 @@ export default function RouteSummary({ route, onBack }: RouteSummaryProps) {
                 {fmt(summary.totalSaldo)}
               </p>
             </div>
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
+            <div className="bg-white rounded border border-gray-200 p-4">
               <p className="text-xs font-medium text-gray-500 mb-1">
                 IN-OUT total
               </p>
@@ -204,7 +204,7 @@ export default function RouteSummary({ route, onBack }: RouteSummaryProps) {
               <p className="text-lg">Esta ruta no tiene máquinas</p>
             </div>
           ) : (
-            <div className="bg-white rounded-lg border border-gray-200">
+            <div className="bg-white rounded border border-gray-200">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-white text-left">
@@ -225,7 +225,7 @@ export default function RouteSummary({ route, onBack }: RouteSummaryProps) {
                       }`}
                     >
                       <td
-                        className={`px-4 py-3 font-medium ${
+                        className={`px-4 py-3 font-mono font-medium ${
                           m.liquidated ? "text-navy-900" : "text-gray-400"
                         }`}
                       >

@@ -25,7 +25,7 @@ interface DashboardProps {
 // porque la tarjeta ya no puede recortar con overflow-hidden: eso rompería el
 // sticky al convertirse en el contenedor de scroll más cercano.
 const th =
-  "sticky top-0 z-10 bg-navy-900 py-3 font-medium first:rounded-tl-lg last:rounded-tr-lg";
+  "sticky top-0 z-10 bg-navy-900 py-3 font-mono text-[11px] font-medium uppercase tracking-wider first:rounded-tl last:rounded-tr";
 
 // Orden natural: A2 < A10 < A100. Debe coincidir con natural_cmp del backend,
 // que es quien ordena la lista que llega de get_machines_by_route.
@@ -234,7 +234,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
         {showUsers ? (
           <UserManagement user={user} />
         ) : showRouteForm ? (
-          <div className="max-w-md mx-auto mt-16 bg-white border border-gray-200 rounded-lg shadow-sm p-8">
+          <div className="max-w-md mx-auto mt-16 bg-white border border-gray-200 rounded shadow-sm p-8">
             <h2 className="text-2xl font-bold text-navy-900 mb-6 text-center">
               {editingRoute ? "Editar Ruta" : "Crear Ruta"}
             </h2>
@@ -370,7 +370,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                   <p className="text-lg">No hay máquinas que coincidan</p>
                 </div>
               ) : (
-                <div className="bg-white rounded-lg border border-gray-200">
+                <div className="bg-white rounded border border-gray-200">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-white text-left">
@@ -387,7 +387,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
                           onClick={() => setSelectedMachine(m)}
                           className="group border-t border-gray-100 hover:bg-navy-50 cursor-pointer transition-colors"
                         >
-                          <td className="px-4 py-3 font-medium text-navy-900">
+                          <td className="px-4 py-3 font-mono font-medium text-navy-900">
                             {m.numberMachine}
                           </td>
                           <td className="px-4 py-3 text-gray-600">
@@ -445,7 +445,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       {/* Confirmación: eliminar ruta */}
       {deletingRoute && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+          <div className="w-full max-w-sm rounded bg-white p-6 shadow-xl">
             <h3 className="font-semibold text-navy-900 mb-2">Eliminar ruta</h3>
             <p className="text-sm text-gray-600 mb-4">
               ¿Eliminar la ruta {deletingRoute.routeName}?
@@ -480,7 +480,7 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
       {/* Confirmación: eliminar máquina */}
       {deletingMachine && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-xl">
+          <div className="w-full max-w-sm rounded bg-white p-6 shadow-xl">
             <h3 className="font-semibold text-navy-900 mb-2">
               Eliminar máquina
             </h3>
