@@ -187,7 +187,11 @@ export default function RouteSummary({ route, onBack }: RouteSummaryProps) {
               <p className="text-xs font-medium text-gray-500 mb-1">
                 IN-OUT total
               </p>
-              <p className="text-2xl font-bold text-navy-900">
+              <p
+                className={`text-2xl font-bold ${
+                  summary.totalInOut < 0 ? "text-red-600" : "text-navy-900"
+                }`}
+              >
                 {fmt(summary.totalInOut)}
               </p>
             </div>
@@ -232,7 +236,13 @@ export default function RouteSummary({ route, onBack }: RouteSummaryProps) {
                         {m.numberMachine}
                       </td>
                       <td className="px-4 py-3">{m.typeMachineName ?? "—"}</td>
-                      <td className="px-4 py-3 text-right">
+                      <td
+                        className={`px-4 py-3 text-right ${
+                          m.liquidated && m.inOut < 0
+                            ? "text-red-600 font-medium"
+                            : ""
+                        }`}
+                      >
                         {m.liquidated ? fmt(m.inOut) : "—"}
                       </td>
                       <td className="px-4 py-3 text-right">

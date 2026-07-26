@@ -1,5 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  MoreVertical,
+  Pencil,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
 import {
   getRecordsByMachine,
   createCounterRecord,
@@ -59,6 +66,9 @@ export default function MachineDetail({
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Menú de acciones excepcionales del header (hoy solo "Reiniciar contadores")
+  const [actionsOpen, setActionsOpen] = useState(false);
+
   // Reinicio de contadores (cambio de tarjeta): baseline nuevo al final
   const [resetOpen, setResetOpen] = useState(false);
   const [resetDate, setResetDate] = useState(today());
@@ -81,6 +91,7 @@ export default function MachineDetail({
     // Al cambiar de máquina, salir de cualquier modo edición/eliminación
     setEditingId(null);
     setDeletingId(null);
+    setActionsOpen(false);
     setResetOpen(false);
     setHighlight(null);
     setLoading(true);
@@ -91,6 +102,22 @@ export default function MachineDetail({
       )
       .finally(() => setLoading(false));
   }, [machine.machineId]);
+
+  // Menú de acciones: cerrar al hacer click fuera o con Escape (igual que el
+  // menú contextual de rutas del sidebar)
+  useEffect(() => {
+    if (!actionsOpen) return;
+    const close = () => setActionsOpen(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setActionsOpen(false);
+    };
+    window.addEventListener("click", close);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [actionsOpen]);
 
   // Los registros más recientes están al final: arrancar abajo, sin animación
   useLayoutEffect(() => {
@@ -152,7 +179,8 @@ export default function MachineDetail({
     return { inOut, faltaSobra };
   }, [inValue, outValue, totalValue, basisRecord, machine.numCoin, machine.typeMachineName]);
 
-  // Entrar a editar una fila (la base solo llega aquí si es el único registro)
+  // Entrar a editar una fila (cualquier registro, incluidos los baselines: al
+  // editar un baseline el total va deshabilitado en 0 y el preview se oculta)
   const startEdit = (r: CounterRecordWithCalc) => {
     setEditingId(r.counterRecordId);
     setRecordDate(r.recordDate);
@@ -311,13 +339,37 @@ export default function MachineDetail({
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {isAdmin && (
-            <button
-              onClick={openReset}
-              className="inline-flex items-center gap-1 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
-            >
-              <RotateCcw size={16} />
-              Reiniciar contadores
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                title="Acciones"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActionsOpen((o) => !o);
+                }}
+                className="inline-flex items-center bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-md px-2 py-1.5 text-sm font-medium transition-colors"
+              >
+                <MoreVertical size={16} />
+              </button>
+              {actionsOpen && (
+                <div
+                  className="absolute right-0 top-full mt-1 z-50 min-w-[12rem] rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActionsOpen(false);
+                      openReset();
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-1.5 text-left text-gray-700 hover:bg-gray-100"
+                  >
+                    <RotateCcw size={16} />
+                    Reiniciar contadores
+                  </button>
+                </div>
+              )}
+            </div>
           )}
           <button
             onClick={onBack}
@@ -364,6 +416,12 @@ export default function MachineDetail({
                   {records.map((r) => {
                     const isEditing = r.counterRecordId === editingId;
                     const isHighlighted = r.counterRecordId === highlight?.id;
+                    const isInstall = r.counterRecordId === installBaselineId;
+                    const isLast =
+                      r.counterRecordId === lastRecord?.counterRecordId;
+                    // Papelera de un reinicio: solo si es el último registro (borrarlo
+                    // con posteriores los dejaría calculando contra otro ciclo)
+                    const showBaselineTrash = isAdmin && !isInstall && isLast;
                     return (
                       <tr
                         key={r.counterRecordId}
@@ -396,22 +454,26 @@ export default function MachineDetail({
                                 : "reinicio"}
                             </td>
                             <td className="px-2 py-2.5 text-right whitespace-nowrap">
-                              {/* El lápiz solo aparece en el baseline único (instalación recién creada) */}
-                              {records.length === 1 && (
-                                <button
-                                  type="button"
-                                  title="Editar instalación"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    startEdit(r);
-                                  }}
-                                  className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-navy-700 transition-opacity"
-                                >
-                                  <Pencil size={16} />
-                                </button>
-                              )}
-                              {/* La papelera solo en los baselines de reinicio: el de instalación es intocable */}
-                              {isAdmin && r.counterRecordId !== installBaselineId && (
+                              {/* El lápiz aparece en todos los baselines (instalación y reinicio) */}
+                              <button
+                                type="button"
+                                title={
+                                  isInstall
+                                    ? "Editar instalación"
+                                    : "Editar reinicio"
+                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startEdit(r);
+                                }}
+                                className={`inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-navy-700 transition-opacity ${
+                                  showBaselineTrash ? "mr-3" : ""
+                                }`}
+                              >
+                                <Pencil size={16} />
+                              </button>
+                              {/* Papelera: nunca en instalación; en un reinicio solo si es el último */}
+                              {showBaselineTrash && (
                                 <button
                                   type="button"
                                   title="Eliminar reinicio"
@@ -428,7 +490,13 @@ export default function MachineDetail({
                           </>
                         ) : (
                           <>
-                            <td className="px-3 py-2.5 text-right text-gray-700">
+                            <td
+                              className={`px-3 py-2.5 text-right ${
+                                r.inOut !== null && r.inOut < 0
+                                  ? "text-red-600 font-medium"
+                                  : "text-gray-700"
+                              }`}
+                            >
                               {r.inOut !== null ? fmt(r.inOut) : "—"}
                             </td>
                             <td className="px-3 py-2.5 text-right text-gray-700">

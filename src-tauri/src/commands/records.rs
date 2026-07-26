@@ -359,6 +359,38 @@ pub fn update_counter_record(
     total_delivered: f64,
     db: State<DbConnection>,
 ) -> Result<CounterRecordWithCalc, String> {
+    let conn = db
+        .0
+        .lock()
+        .map_err(|e| format!("DB lock poisoned: {}", e))?;
+
+    update_counter_record_impl(
+        &conn,
+        counter_record_id,
+        record_date,
+        counter_in,
+        counter_out,
+        total_delivered,
+    )
+}
+
+// Regla UNIFICADA de validación de la edición. Un baseline (instalación o
+// reinicio) corta la cadena: el registro posterior se calcula contra el
+// baseline, no contra lo anterior.
+// - Contra el vecino ANTERIOR: la fecha siempre; los contadores solo si el
+//   registro editado NO es baseline (un baseline arranca de nuevo, sus
+//   contadores pueden ser menores que los del ciclo anterior).
+// - Contra el vecino SIGUIENTE: la fecha siempre; los contadores solo si el
+//   siguiente NO es baseline (un baseline corta la cadena).
+// - Si el editado es baseline: totalDelivered se fuerza a 0 y sigue siendo baseline.
+fn update_counter_record_impl(
+    conn: &Connection,
+    counter_record_id: i64,
+    record_date: String,
+    counter_in: i64,
+    counter_out: i64,
+    total_delivered: f64,
+) -> Result<CounterRecordWithCalc, String> {
     if counter_in < 0 || counter_out < 0 {
         return Err("Los contadores no pueden ser negativos".to_string());
     }
@@ -369,11 +401,6 @@ pub fn update_counter_record(
     let new_date = NaiveDate::parse_from_str(record_date.trim(), DATE_FMT)
         .map_err(|_| "La fecha no es válida".to_string())?;
     let record_date = new_date.format(DATE_FMT).to_string();
-
-    let conn = db
-        .0
-        .lock()
-        .map_err(|e| format!("DB lock poisoned: {}", e))?;
 
     // El registro a editar, con su machineId
     let target = conn
@@ -392,62 +419,15 @@ pub fn update_counter_record(
 
     let (target, machine_id) = target.ok_or_else(|| "El registro no existe".to_string())?;
 
-    let (num_coin, is_poker) = machine_calc_info(&conn, machine_id)?;
-
-    if target.is_baseline {
-        // Ningún baseline se edita salvo que sea el ÚNICO registro de la máquina
-        // (la instalación recién creada). Un baseline de reinicio mal cargado se
-        // elimina y se vuelve a crear.
-        let total_records: i64 = conn
-            .query_row(
-                "SELECT COUNT(*) FROM CounterRecord WHERE machineId = ?1",
-                [machine_id],
-                |row| row.get(0),
-            )
-            .map_err(|e| {
-                eprintln!("records: record count failed: {}", e);
-                "No se pudo actualizar el registro".to_string()
-            })?;
-
-        if total_records > 1 {
-            return Err(
-                "El punto de partida solo se puede editar si es el único registro de la máquina"
-                    .to_string(),
-            );
-        }
-
-        // La base no se liquida: totalDelivered se fuerza a 0 y sigue siendo baseline
-        conn.execute(
-            "UPDATE CounterRecord
-             SET recordDate = ?1, counterIn = ?2, counterOut = ?3, totalDelivered = 0
-             WHERE counterRecordId = ?4",
-            params![record_date, counter_in, counter_out, counter_record_id],
-        )
-        .map_err(|e| {
-            eprintln!("records: update baseline failed: {}", e);
-            "No se pudo actualizar el registro".to_string()
-        })?;
-
-        let current = RawRecord {
-            counter_record_id,
-            record_date,
-            counter_in,
-            counter_out,
-            total_delivered: 0.0,
-            is_baseline: true,
-        };
-
-        // Baseline: los campos calculados salen en None
-        return Ok(calculate_record(&current, None, num_coin, is_poker));
-    }
+    let (num_coin, is_poker) = machine_calc_info(conn, machine_id)?;
 
     // Vecinos según la posición ACTUAL del registro
-    let prev = neighbor_record(&conn, machine_id, &target.record_date, counter_record_id, true)?;
-    let next = neighbor_record(&conn, machine_id, &target.record_date, counter_record_id, false)?;
+    let prev = neighbor_record(conn, machine_id, &target.record_date, counter_record_id, true)?;
+    let next = neighbor_record(conn, machine_id, &target.record_date, counter_record_id, false)?;
 
-    // Contra el anterior: contadores y fecha no pueden ser menores
+    // Contra el anterior: fecha siempre; contadores solo si el editado NO es baseline
     if let Some(prev) = &prev {
-        if counter_in < prev.counter_in || counter_out < prev.counter_out {
+        if !target.is_baseline && (counter_in < prev.counter_in || counter_out < prev.counter_out) {
             return Err(format!(
                 "Los contadores no pueden ser menores que los del último registro (IN: {}, OUT: {})",
                 prev.counter_in, prev.counter_out
@@ -465,9 +445,9 @@ pub fn update_counter_record(
         }
     }
 
-    // Contra el siguiente: contadores y fecha no pueden ser mayores
+    // Contra el siguiente: fecha siempre; contadores solo si el siguiente NO es baseline
     if let Some(next) = &next {
-        if counter_in > next.counter_in || counter_out > next.counter_out {
+        if !next.is_baseline && (counter_in > next.counter_in || counter_out > next.counter_out) {
             return Err(format!(
                 "Los contadores no pueden ser mayores que los del registro siguiente (IN: {}, OUT: {})",
                 next.counter_in, next.counter_out
@@ -485,11 +465,14 @@ pub fn update_counter_record(
         }
     }
 
+    // Un baseline no se liquida: totalDelivered se fuerza a 0 y sigue siendo baseline
+    let stored_total = if target.is_baseline { 0.0 } else { total_delivered };
+
     conn.execute(
         "UPDATE CounterRecord
          SET recordDate = ?1, counterIn = ?2, counterOut = ?3, totalDelivered = ?4
          WHERE counterRecordId = ?5",
-        params![record_date, counter_in, counter_out, total_delivered, counter_record_id],
+        params![record_date, counter_in, counter_out, stored_total, counter_record_id],
     )
     .map_err(|e| {
         eprintln!("records: update failed: {}", e);
@@ -501,13 +484,13 @@ pub fn update_counter_record(
         record_date,
         counter_in,
         counter_out,
-        total_delivered,
-        is_baseline: false,
+        total_delivered: stored_total,
+        is_baseline: target.is_baseline,
     };
 
-    // Recalculado contra su registro anterior (las validaciones garantizan que
-    // sigue siendo el mismo vecino tras la edición)
-    Ok(calculate_record(&current, prev.as_ref(), num_coin, is_poker))
+    // Baseline: sin cálculo (calculate_record devuelve None). Normal: contra su anterior.
+    let prev_for_calc = if target.is_baseline { None } else { prev.as_ref() };
+    Ok(calculate_record(&current, prev_for_calc, num_coin, is_poker))
 }
 
 #[tauri::command]
@@ -520,11 +503,21 @@ pub fn delete_counter_record(
         .lock()
         .map_err(|e| format!("DB lock poisoned: {}", e))?;
 
+    delete_counter_record_impl(&conn, counter_record_id)
+}
+
+fn delete_counter_record_impl(conn: &Connection, counter_record_id: i64) -> Result<(), String> {
     let target = conn
         .query_row(
-            "SELECT isBaseline, machineId FROM CounterRecord WHERE counterRecordId = ?1",
+            "SELECT recordDate, isBaseline, machineId FROM CounterRecord WHERE counterRecordId = ?1",
             [counter_record_id],
-            |row| Ok((row.get::<_, i64>(0)? != 0, row.get::<_, i64>(1)?)),
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)? != 0,
+                    row.get::<_, i64>(2)?,
+                ))
+            },
         )
         .optional()
         .map_err(|e| {
@@ -532,12 +525,11 @@ pub fn delete_counter_record(
             "No se pudo eliminar el registro".to_string()
         })?;
 
-    let (is_baseline, machine_id) = target.ok_or_else(|| "El registro no existe".to_string())?;
+    let (record_date, is_baseline, machine_id) =
+        target.ok_or_else(|| "El registro no existe".to_string())?;
 
-    // Solo el baseline MÁS ANTIGUO (la instalación) es intocable. Los baselines
-    // de reinicio sí se pueden borrar: al hacerlo la cadena se vuelve a unir y
-    // los cálculos posteriores se recalculan solos.
     if is_baseline {
+        // El baseline MÁS ANTIGUO (la instalación) es intocable.
         let oldest_baseline_id: i64 = conn
             .query_row(
                 "SELECT counterRecordId FROM CounterRecord
@@ -554,6 +546,16 @@ pub fn delete_counter_record(
 
         if counter_record_id == oldest_baseline_id {
             return Err("El registro de instalación no se puede eliminar".to_string());
+        }
+
+        // Un reinicio con registros posteriores no se puede borrar: dejaría a los
+        // siguientes calculando contra contadores de otro ciclo (valores sin sentido).
+        let has_later =
+            neighbor_record(conn, machine_id, &record_date, counter_record_id, false)?.is_some();
+        if has_later {
+            return Err(
+                "No se puede eliminar el reinicio porque tiene registros posteriores".to_string(),
+            );
         }
     }
 
@@ -742,4 +744,155 @@ pub fn get_route_summary(
         machines_liquidated,
         machines_total,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // BD en memoria con el esquema mínimo y una máquina (tipo no-Poker, moneda 100)
+    fn setup_conn() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE TypeMachine (
+                typeMachineId INTEGER PRIMARY KEY AUTOINCREMENT,
+                nameTypeMachine TEXT NOT NULL UNIQUE
+            );
+            CREATE TABLE CoinType (
+                coinTypeId INTEGER PRIMARY KEY AUTOINCREMENT,
+                numCoin INTEGER NOT NULL UNIQUE
+            );
+            CREATE TABLE Machine (
+                machineId INTEGER PRIMARY KEY AUTOINCREMENT,
+                numberMachine TEXT NOT NULL UNIQUE,
+                typeMachineId INTEGER NOT NULL,
+                coinTypeId INTEGER NOT NULL,
+                routeId INTEGER NOT NULL
+            );
+            CREATE TABLE CounterRecord (
+                counterRecordId INTEGER PRIMARY KEY AUTOINCREMENT,
+                recordDate TEXT NOT NULL,
+                counterIn INTEGER NOT NULL,
+                counterOut INTEGER NOT NULL,
+                totalDelivered REAL NOT NULL,
+                isBaseline INTEGER NOT NULL DEFAULT 0,
+                machineId INTEGER NOT NULL
+            );
+            INSERT INTO TypeMachine (typeMachineId, nameTypeMachine) VALUES (1, 'Slot');
+            INSERT INTO CoinType (coinTypeId, numCoin) VALUES (1, 100);
+            INSERT INTO Machine (machineId, numberMachine, typeMachineId, coinTypeId, routeId)
+                VALUES (1, 'A1', 1, 1, 1);",
+        )
+        .unwrap();
+        conn
+    }
+
+    // Inserta un registro en la máquina 1 y devuelve su id
+    fn insert(
+        conn: &Connection,
+        date: &str,
+        cin: i64,
+        cout: i64,
+        total: f64,
+        baseline: bool,
+    ) -> i64 {
+        conn.execute(
+            "INSERT INTO CounterRecord
+                (recordDate, counterIn, counterOut, totalDelivered, isBaseline, machineId)
+             VALUES (?1, ?2, ?3, ?4, ?5, 1)",
+            params![date, cin, cout, total, baseline as i64],
+        )
+        .unwrap();
+        conn.last_insert_rowid()
+    }
+
+    // Bug arreglado: un registro normal cuyo SIGUIENTE es un reinicio (baseline de
+    // contadores bajos) antes no se podía editar nunca. Ahora sí, porque un
+    // baseline corta la cadena y no se comparan contadores contra él.
+    #[test]
+    fn editar_registro_cuyo_siguiente_es_reinicio_se_permite() {
+        let conn = setup_conn();
+        insert(&conn, "2026-01-01", 0, 0, 0.0, true); // instalación
+        let normal = insert(&conn, "2026-01-15", 1000, 400, 300.0, false); // normal
+        insert(&conn, "2026-02-01", 0, 0, 0.0, true); // reinicio (contadores bajos)
+
+        // Cambiar solo el total; los contadores (1000/400) superan al reinicio (0/0)
+        let res =
+            update_counter_record_impl(&conn, normal, "2026-01-15".into(), 1000, 400, 500.0);
+        assert!(res.is_ok(), "debería permitirse: {:?}", res.err());
+        assert_eq!(res.unwrap().total_delivered, 500.0);
+    }
+
+    // Un reinicio arranca de nuevo: puede tener contadores menores que su anterior.
+    #[test]
+    fn editar_reinicio_bajando_contadores_respecto_del_anterior_se_permite() {
+        let conn = setup_conn();
+        insert(&conn, "2026-01-01", 0, 0, 0.0, true); // instalación
+        insert(&conn, "2026-01-15", 1000, 400, 300.0, false); // normal (anterior al reinicio)
+        let reinicio = insert(&conn, "2026-02-01", 50, 20, 0.0, true); // reinicio
+
+        // Bajar por debajo del anterior (1000/400): permitido
+        let res =
+            update_counter_record_impl(&conn, reinicio, "2026-02-01".into(), 10, 5, 999.0);
+        assert!(res.is_ok(), "debería permitirse: {:?}", res.err());
+        let calc = res.unwrap();
+        assert!(calc.is_baseline);
+        assert_eq!(calc.total_delivered, 0.0); // total forzado a 0
+        assert!(calc.in_out.is_none()); // baseline no se liquida
+    }
+
+    // Pero un reinicio no puede subir por encima del siguiente registro normal:
+    // ese siguiente SÍ se calcula contra el reinicio.
+    #[test]
+    fn editar_reinicio_por_encima_del_siguiente_normal_se_rechaza() {
+        let conn = setup_conn();
+        insert(&conn, "2026-01-01", 0, 0, 0.0, true); // instalación
+        insert(&conn, "2026-01-15", 1000, 400, 300.0, false); // normal
+        let reinicio = insert(&conn, "2026-02-01", 50, 20, 0.0, true); // reinicio
+        insert(&conn, "2026-02-15", 200, 80, 250.0, false); // normal posterior al reinicio
+
+        // Subir por encima del siguiente normal (200/80): rechazado
+        let res =
+            update_counter_record_impl(&conn, reinicio, "2026-02-01".into(), 500, 300, 0.0);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("no pueden ser mayores"));
+    }
+
+    // Borrar un reinicio con registros posteriores dejaría a esos calculando
+    // contra otro ciclo: se rechaza.
+    #[test]
+    fn eliminar_reinicio_con_registros_posteriores_se_rechaza() {
+        let conn = setup_conn();
+        insert(&conn, "2026-01-01", 0, 0, 0.0, true); // instalación
+        insert(&conn, "2026-01-15", 1000, 400, 300.0, false); // normal
+        let reinicio = insert(&conn, "2026-02-01", 0, 0, 0.0, true); // reinicio
+        insert(&conn, "2026-02-15", 200, 80, 250.0, false); // posterior
+
+        let res = delete_counter_record_impl(&conn, reinicio);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("registros posteriores"));
+    }
+
+    // Un reinicio que es el último registro sí se puede borrar.
+    #[test]
+    fn eliminar_reinicio_sin_posteriores_se_permite() {
+        let conn = setup_conn();
+        insert(&conn, "2026-01-01", 0, 0, 0.0, true);
+        insert(&conn, "2026-01-15", 1000, 400, 300.0, false);
+        let reinicio = insert(&conn, "2026-02-01", 0, 0, 0.0, true);
+
+        assert!(delete_counter_record_impl(&conn, reinicio).is_ok());
+    }
+
+    // La instalación (baseline más antiguo) nunca se borra.
+    #[test]
+    fn eliminar_instalacion_se_rechaza() {
+        let conn = setup_conn();
+        let install = insert(&conn, "2026-01-01", 0, 0, 0.0, true);
+        insert(&conn, "2026-01-15", 1000, 400, 300.0, false);
+
+        let res = delete_counter_record_impl(&conn, install);
+        assert!(res.is_err());
+        assert!(res.unwrap_err().contains("instalación"));
+    }
 }
