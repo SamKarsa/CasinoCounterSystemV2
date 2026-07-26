@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Folder, Users } from "lucide-react";
 import type { Route } from "../types";
+import { branding } from "../config/branding";
 
 interface SidebarProps {
   routes: Route[];
@@ -54,9 +55,9 @@ export default function Sidebar({
       {/* Logo */}
       <div className="px-4 py-5 border-b border-white/10">
         <h1 className="text-white font-bold text-xl leading-tight">
-          CLT Electronic
+          {branding.companyName}
         </h1>
-        <p className="text-navy-300 text-xs">Casino Counter System</p>
+        <p className="text-navy-300 text-xs">{branding.tagline}</p>
       </div>
 
       {/* Lista de rutas */}

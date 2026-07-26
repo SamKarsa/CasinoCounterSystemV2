@@ -2,7 +2,7 @@
 // Al vender la app a una empresa nueva, cambia `companyName` (y opcionalmente `tagline`).
 // `vendor` es el crédito fijo del proveedor y aparece discreto en el pie del login.
 export const branding = {
-  companyName: "CLT Electronic",
+  companyName: "Casino La Fortuna",
   tagline: "Sistema de control de casino",
-  vendor: "CLT Electronic",
+  vendor: "Samuel López",
 } as const;

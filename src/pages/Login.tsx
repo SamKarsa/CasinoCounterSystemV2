@@ -13,7 +13,9 @@ export default function Login({ onLoginSuccess }: LoginProps) {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const showVendor = branding.vendor !== branding.companyName;
+  // `branding` es `as const`: sin el cast, tsc trata la comparación como
+  // siempre-verdadera (literales distintos) y falla el build.
+  const showVendor = (branding.vendor as string) !== branding.companyName;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
