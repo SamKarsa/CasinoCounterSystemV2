@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Pencil, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Pencil, RotateCcw, Trash2 } from "lucide-react";
 import {
   getRecordsByMachine,
   createCounterRecord,
+  createBaselineRecord,
   updateCounterRecord,
   deleteCounterRecord,
 } from "../lib/tauri";
@@ -58,6 +59,14 @@ export default function MachineDetail({
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  // Reinicio de contadores (cambio de tarjeta): baseline nuevo al final
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetDate, setResetDate] = useState(today());
+  const [resetIn, setResetIn] = useState("");
+  const [resetOut, setResetOut] = useState("");
+  const [resetSaving, setResetSaving] = useState(false);
+  const [resetError, setResetError] = useState("");
+
   // Tabla: scroll al fondo al cargar y resaltado de la fila recién guardada
   const tableScrollRef = useRef<HTMLDivElement>(null);
   // nonce: guardar dos veces la misma fila debe volver a disparar el resaltado
@@ -72,6 +81,7 @@ export default function MachineDetail({
     // Al cambiar de máquina, salir de cualquier modo edición/eliminación
     setEditingId(null);
     setDeletingId(null);
+    setResetOpen(false);
     setHighlight(null);
     setLoading(true);
     getRecordsByMachine(machine.machineId)
@@ -100,6 +110,11 @@ export default function MachineDetail({
   }, [highlight]);
 
   const lastRecord = records.length > 0 ? records[records.length - 1] : null;
+
+  // El baseline más antiguo es la instalación (intocable); los demás son
+  // reinicios. records viene ordenado ASC, así que el primero es el más antiguo.
+  const installBaselineId =
+    records.find((r) => r.isBaseline)?.counterRecordId ?? null;
 
   // El registro contra el que se compara el preview:
   // - modo nuevo: el último de la lista
@@ -217,6 +232,37 @@ export default function MachineDetail({
     }
   };
 
+  const openReset = () => {
+    setResetDate(today());
+    setResetIn("");
+    setResetOut("");
+    setResetError("");
+    setResetOpen(true);
+  };
+
+  const handleReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError("");
+    setResetSaving(true);
+    try {
+      const baseline = await createBaselineRecord({
+        machineId: machine.machineId,
+        recordDate: resetDate,
+        counterIn: parseInt(resetIn, 10),
+        counterOut: parseInt(resetOut, 10),
+      });
+      // El baseline nuevo va al final: recargar todo y resaltar la fila
+      const fresh = await getRecordsByMachine(machine.machineId);
+      setRecords(fresh);
+      setResetOpen(false);
+      flashRow(baseline.counterRecordId);
+    } catch (err) {
+      setResetError(typeof err === "string" ? err : "Error al reiniciar");
+    } finally {
+      setResetSaving(false);
+    }
+  };
+
   const deletingRecord =
     deletingId !== null
       ? records.find((r) => r.counterRecordId === deletingId) ?? null
@@ -263,13 +309,24 @@ export default function MachineDetail({
             {machine.numCoin ?? "—"} · {machine.routeName ?? "—"}
           </p>
         </div>
-        <button
-          onClick={onBack}
-          className="inline-flex items-center gap-1 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
-        >
-          <ChevronLeft size={16} />
-          Volver
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {isAdmin && (
+            <button
+              onClick={openReset}
+              className="inline-flex items-center gap-1 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+            >
+              <RotateCcw size={16} />
+              Reiniciar contadores
+            </button>
+          )}
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-1 bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+          >
+            <ChevronLeft size={16} />
+            Volver
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -334,9 +391,12 @@ export default function MachineDetail({
                               colSpan={4}
                               className="px-3 py-2.5 text-right text-gray-400 italic"
                             >
-                              instalación
+                              {r.counterRecordId === installBaselineId
+                                ? "instalación"
+                                : "reinicio"}
                             </td>
                             <td className="px-2 py-2.5 text-right whitespace-nowrap">
+                              {/* El lápiz solo aparece en el baseline único (instalación recién creada) */}
                               {records.length === 1 && (
                                 <button
                                   type="button"
@@ -348,6 +408,20 @@ export default function MachineDetail({
                                   className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-navy-700 transition-opacity"
                                 >
                                   <Pencil size={16} />
+                                </button>
+                              )}
+                              {/* La papelera solo en los baselines de reinicio: el de instalación es intocable */}
+                              {isAdmin && r.counterRecordId !== installBaselineId && (
+                                <button
+                                  type="button"
+                                  title="Eliminar reinicio"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeletingId(r.counterRecordId);
+                                  }}
+                                  className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition-opacity"
+                                >
+                                  <Trash2 size={16} />
                                 </button>
                               )}
                             </td>
@@ -566,6 +640,87 @@ export default function MachineDetail({
           </div>
         </aside>
       </div>
+
+      {/* Reinicio de contadores (cambio de tarjeta) */}
+      {resetOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded bg-white p-6 shadow-xl">
+            <h3 className="font-semibold text-navy-900 mb-2">
+              Reiniciar contadores
+            </h3>
+            <p className="text-sm text-gray-600 mb-4">
+              Usá esta opción si a la máquina le cambiaron los contadores. Se
+              guarda un punto de partida nuevo y el histórico anterior se
+              conserva.
+            </p>
+            <form onSubmit={handleReset} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Fecha
+                </label>
+                <input
+                  type="date"
+                  value={resetDate}
+                  onChange={(e) => setResetDate(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  IN
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={resetIn}
+                  onChange={(e) => setResetIn(e.target.value)}
+                  autoFocus
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  OUT
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  value={resetOut}
+                  onChange={(e) => setResetOut(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-navy-500"
+                />
+              </div>
+
+              {resetError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2 rounded-md">
+                  {resetError}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setResetOpen(false)}
+                  disabled={resetSaving}
+                  className="bg-gray-200 text-gray-700 hover:bg-gray-300 rounded-md px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={resetSaving}
+                  className="bg-navy-900 text-white hover:bg-navy-800 rounded-md px-4 py-2 text-sm font-semibold transition-colors disabled:bg-gray-400"
+                >
+                  {resetSaving ? "Guardando..." : "Guardar"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Confirmación de eliminación (diálogo propio, no window.confirm) */}
       {deletingRecord && (

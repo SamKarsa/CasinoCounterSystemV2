@@ -225,6 +225,94 @@ pub fn create_counter_record(
     Ok(calculate_record(&current, Some(&last), num_coin, is_poker))
 }
 
+// Reinicio de contadores: cuando a una máquina le cambian la tarjeta y los
+// contadores vuelven a cero (o a otros valores), se inserta un baseline nuevo
+// (isBaseline = 1) al final de la cadena. No se liquida y sirve de referencia
+// para el registro siguiente. Una máquina puede tener varios baselines: el
+// primero es la instalación, los demás son reinicios.
+#[tauri::command]
+pub fn create_baseline_record(
+    machine_id: i64,
+    record_date: String,
+    counter_in: i64,
+    counter_out: i64,
+    db: State<DbConnection>,
+) -> Result<CounterRecordWithCalc, String> {
+    if counter_in < 0 || counter_out < 0 {
+        return Err("Los contadores no pueden ser negativos".to_string());
+    }
+
+    let new_date = NaiveDate::parse_from_str(record_date.trim(), DATE_FMT)
+        .map_err(|_| "La fecha no es válida".to_string())?;
+    // Guardar siempre en formato canónico YYYY-MM-DD (orden y comparación consistentes)
+    let record_date = new_date.format(DATE_FMT).to_string();
+
+    let conn = db
+        .0
+        .lock()
+        .map_err(|e| format!("DB lock poisoned: {}", e))?;
+
+    let (num_coin, is_poker) = machine_calc_info(&conn, machine_id)?;
+
+    // Un reinicio corta una cadena existente: la máquina debe tener registros
+    let last = conn
+        .query_row(
+            "SELECT counterRecordId, recordDate, counterIn, counterOut,
+                    totalDelivered, isBaseline
+             FROM CounterRecord
+             WHERE machineId = ?1
+             ORDER BY recordDate DESC, counterRecordId DESC
+             LIMIT 1",
+            [machine_id],
+            map_raw_record,
+        )
+        .optional()
+        .map_err(|e| {
+            eprintln!("records: failed to read last record: {}", e);
+            "No se pudo leer el último registro".to_string()
+        })?;
+
+    let last = last.ok_or_else(|| "La máquina no tiene registros".to_string())?;
+
+    // SOLO se valida la fecha: el sentido del reinicio es que los contadores
+    // bajaron, así que no se comparan contra los del último registro.
+    let last_date = NaiveDate::parse_from_str(&last.record_date, DATE_FMT).map_err(|e| {
+        eprintln!("records: corrupt date in last record: {}", e);
+        "No se pudo validar la fecha del último registro".to_string()
+    })?;
+    if new_date < last_date {
+        return Err(format!(
+            "La fecha no puede ser anterior al último registro ({})",
+            last.record_date
+        ));
+    }
+
+    // isBaseline = 1 y totalDelivered = 0 forzado (un baseline no se liquida)
+    conn.execute(
+        "INSERT INTO CounterRecord (recordDate, counterIn, counterOut, totalDelivered, isBaseline, machineId)
+         VALUES (?1, ?2, ?3, 0, 1, ?4)",
+        params![record_date, counter_in, counter_out, machine_id],
+    )
+    .map_err(|e| {
+        eprintln!("records: baseline insert failed: {}", e);
+        "No se pudo reiniciar los contadores".to_string()
+    })?;
+
+    let new_id = conn.last_insert_rowid();
+
+    let current = RawRecord {
+        counter_record_id: new_id,
+        record_date,
+        counter_in,
+        counter_out,
+        total_delivered: 0.0,
+        is_baseline: true,
+    };
+
+    // Baseline: los campos calculados salen en None
+    Ok(calculate_record(&current, None, num_coin, is_poker))
+}
+
 // Vecino (anterior o siguiente) de un registro dentro de su misma máquina,
 // usando el orden (recordDate, counterRecordId).
 fn neighbor_record(
@@ -307,10 +395,12 @@ pub fn update_counter_record(
     let (num_coin, is_poker) = machine_calc_info(&conn, machine_id)?;
 
     if target.is_baseline {
-        // La base solo es editable si es el ÚNICO registro de la máquina
-        let real_records: i64 = conn
+        // Ningún baseline se edita salvo que sea el ÚNICO registro de la máquina
+        // (la instalación recién creada). Un baseline de reinicio mal cargado se
+        // elimina y se vuelve a crear.
+        let total_records: i64 = conn
             .query_row(
-                "SELECT COUNT(*) FROM CounterRecord WHERE machineId = ?1 AND isBaseline = 0",
+                "SELECT COUNT(*) FROM CounterRecord WHERE machineId = ?1",
                 [machine_id],
                 |row| row.get(0),
             )
@@ -319,9 +409,9 @@ pub fn update_counter_record(
                 "No se pudo actualizar el registro".to_string()
             })?;
 
-        if real_records > 0 {
+        if total_records > 1 {
             return Err(
-                "El registro de instalación solo se puede editar si no hay registros posteriores"
+                "El punto de partida solo se puede editar si es el único registro de la máquina"
                     .to_string(),
             );
         }
@@ -430,11 +520,11 @@ pub fn delete_counter_record(
         .lock()
         .map_err(|e| format!("DB lock poisoned: {}", e))?;
 
-    let is_baseline = conn
+    let target = conn
         .query_row(
-            "SELECT isBaseline FROM CounterRecord WHERE counterRecordId = ?1",
+            "SELECT isBaseline, machineId FROM CounterRecord WHERE counterRecordId = ?1",
             [counter_record_id],
-            |row| Ok(row.get::<_, i64>(0)? != 0),
+            |row| Ok((row.get::<_, i64>(0)? != 0, row.get::<_, i64>(1)?)),
         )
         .optional()
         .map_err(|e| {
@@ -442,9 +532,29 @@ pub fn delete_counter_record(
             "No se pudo eliminar el registro".to_string()
         })?;
 
-    let is_baseline = is_baseline.ok_or_else(|| "El registro no existe".to_string())?;
+    let (is_baseline, machine_id) = target.ok_or_else(|| "El registro no existe".to_string())?;
+
+    // Solo el baseline MÁS ANTIGUO (la instalación) es intocable. Los baselines
+    // de reinicio sí se pueden borrar: al hacerlo la cadena se vuelve a unir y
+    // los cálculos posteriores se recalculan solos.
     if is_baseline {
-        return Err("El registro de instalación no se puede eliminar".to_string());
+        let oldest_baseline_id: i64 = conn
+            .query_row(
+                "SELECT counterRecordId FROM CounterRecord
+                 WHERE machineId = ?1 AND isBaseline = 1
+                 ORDER BY recordDate ASC, counterRecordId ASC
+                 LIMIT 1",
+                [machine_id],
+                |row| row.get(0),
+            )
+            .map_err(|e| {
+                eprintln!("records: oldest baseline lookup failed: {}", e);
+                "No se pudo eliminar el registro".to_string()
+            })?;
+
+        if counter_record_id == oldest_baseline_id {
+            return Err("El registro de instalación no se puede eliminar".to_string());
+        }
     }
 
     // El recálculo de los posteriores es automático: get_records_by_machine

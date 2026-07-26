@@ -23,6 +23,21 @@ IN-OUT as (Δout) * coinValue (only the OUT counter). All other types
 use ((Δin) - (Δout)) * coinValue. The comparison is by
 nameTypeMachine = 'Poker' — do not rename that seed row.
 
+**Baselines / reset counters.** A `CounterRecord` with `isBaseline = 1` is a
+reference point: it is not liquidated (no IN-OUT/saldo/falta-sobra) and the next
+record is compared against it. A machine can have **several** baselines. The
+**oldest** one is the installation (seeded when the machine is created) and is
+**intocable**: it cannot be edited (unless it is the machine's only record) nor
+deleted. The others are **resets** ("Reiniciar contadores"), created when a
+machine's card is swapped and its counters drop back to zero (or any value). A
+reset inserts a new baseline at the end of the chain — `create_baseline_record`
+validates only that the date is not before the last record (counters are *not*
+checked, since dropping them is the whole point) and forces `totalDelivered = 0`.
+Reset baselines **can** be deleted; on delete the chain rejoins and later records
+recalculate automatically. A mis-entered reset is fixed by deleting and
+recreating it, not editing. `calculate_record` already treats any baseline as a
+non-liquidated reference — do not change it.
+
 **Permissions.** Two roles seeded in `Role`: `Admin` and `Counter Operator`. The
 operator is the data-entry person — they type records, nothing else:
 

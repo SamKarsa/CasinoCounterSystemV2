@@ -114,6 +114,17 @@ export function createCounterRecord(data: {
   return invoke<CounterRecordWithCalc>("create_counter_record", { ...data });
 }
 
+// Reinicio de contadores: inserta un baseline nuevo al final de la cadena
+// (isBaseline = 1). No lleva total: no se liquida.
+export function createBaselineRecord(data: {
+  machineId: number;
+  recordDate: string;
+  counterIn: number;
+  counterOut: number;
+}): Promise<CounterRecordWithCalc> {
+  return invoke<CounterRecordWithCalc>("create_baseline_record", { ...data });
+}
+
 export function updateCounterRecord(data: {
   counterRecordId: number;
   recordDate: string;

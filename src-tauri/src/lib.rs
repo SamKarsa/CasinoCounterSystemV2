@@ -36,6 +36,7 @@ pub fn run() {
             commands::machines::delete_machine,
             commands::records::get_records_by_machine,
             commands::records::create_counter_record,
+            commands::records::create_baseline_record,
             commands::records::update_counter_record,
             commands::records::delete_counter_record,
             commands::records::get_route_summary,
