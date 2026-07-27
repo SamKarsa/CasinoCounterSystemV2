@@ -407,7 +407,6 @@ export default function MachineDetail({
                     <th className={`${th} px-3 text-right`}>OUT</th>
                     <th className={`${th} px-3 text-right`}>IN-OUT</th>
                     <th className={`${th} px-3 text-right`}>Total</th>
-                    <th className={`${th} px-3 text-right`}>Saldo</th>
                     <th className={`${th} px-3 text-right`}>Falta/Sobra</th>
                     <th className={`${th} px-2 w-16`}></th>
                   </tr>
@@ -446,7 +445,7 @@ export default function MachineDetail({
                         {r.isBaseline ? (
                           <>
                             <td
-                              colSpan={4}
+                              colSpan={3}
                               className="px-3 py-2.5 text-right text-gray-400 italic"
                             >
                               {r.counterRecordId === installBaselineId
@@ -501,9 +500,6 @@ export default function MachineDetail({
                             </td>
                             <td className="px-3 py-2.5 text-right text-gray-700">
                               {fmt(r.totalDelivered)}
-                            </td>
-                            <td className="px-3 py-2.5 text-right text-gray-700">
-                              {r.saldo !== null ? fmt(r.saldo) : "—"}
                             </td>
                             <td className="px-3 py-2.5 text-right">
                               {r.faltaSobra !== null ? (

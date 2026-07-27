@@ -35,7 +35,7 @@ fn calculate_record(
     num_coin: i64,
     is_poker: bool,
 ) -> CounterRecordWithCalc {
-    let (in_out, saldo, falta_sobra) = match (current.is_baseline, prev) {
+    let (in_out, falta_sobra) = match (current.is_baseline, prev) {
         (false, Some(p)) => {
             let delta_in = current.counter_in - p.counter_in;
             let delta_out = current.counter_out - p.counter_out;
@@ -44,11 +44,10 @@ fn calculate_record(
             } else {
                 ((delta_in - delta_out) as f64) * num_coin as f64
             };
-            let saldo = current.total_delivered / 2.0;
             let falta_sobra = current.total_delivered - in_out;
-            (Some(in_out), Some(saldo), Some(falta_sobra))
+            (Some(in_out), Some(falta_sobra))
         }
-        _ => (None, None, None),
+        _ => (None, None),
     };
 
     CounterRecordWithCalc {
@@ -59,7 +58,6 @@ fn calculate_record(
         total_delivered: current.total_delivered,
         is_baseline: current.is_baseline,
         in_out,
-        saldo,
         falta_sobra,
     }
 }
@@ -687,7 +685,6 @@ pub fn get_route_summary(
 
         let mut in_out = 0.0;
         let mut total = 0.0;
-        let mut saldo = 0.0;
         let mut falta_sobra = 0.0;
         let mut liquidated = false;
 
@@ -705,7 +702,6 @@ pub fn get_route_summary(
             liquidated = true;
             in_out += calc.in_out.unwrap_or(0.0);
             total += calc.total_delivered;
-            saldo += calc.saldo.unwrap_or(0.0);
             falta_sobra += calc.falta_sobra.unwrap_or(0.0);
         }
 
@@ -716,7 +712,6 @@ pub fn get_route_summary(
             liquidated,
             in_out,
             total,
-            saldo,
             falta_sobra,
         });
     }
@@ -728,7 +723,6 @@ pub fn get_route_summary(
     let machines_liquidated = machines.iter().filter(|m| m.liquidated).count() as i64;
     let total_in_out = machines.iter().map(|m| m.in_out).sum();
     let total_delivered = machines.iter().map(|m| m.total).sum();
-    let total_saldo = machines.iter().map(|m| m.saldo).sum();
     let total_falta_sobra = machines.iter().map(|m| m.falta_sobra).sum();
 
     Ok(RouteSummary {
@@ -739,7 +733,6 @@ pub fn get_route_summary(
         machines,
         total_in_out,
         total_delivered,
-        total_saldo,
         total_falta_sobra,
         machines_liquidated,
         machines_total,

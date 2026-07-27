@@ -52,7 +52,6 @@ pub struct CounterRecordWithCalc {
     pub is_baseline: bool,
     // Calculados en Rust; None si is_baseline (no hay contra qué comparar)
     pub in_out: Option<f64>,
-    pub saldo: Option<f64>,
     pub falta_sobra: Option<f64>,
 }
 
@@ -68,7 +67,6 @@ pub struct RouteSummaryMachine {
     pub liquidated: bool,
     pub in_out: f64,
     pub total: f64,
-    pub saldo: f64,
     pub falta_sobra: f64,
 }
 
@@ -82,7 +80,6 @@ pub struct RouteSummary {
     pub machines: Vec<RouteSummaryMachine>,
     pub total_in_out: f64,
     pub total_delivered: f64,
-    pub total_saldo: f64,
     pub total_falta_sobra: f64,
     pub machines_liquidated: i64,
     pub machines_total: i64,

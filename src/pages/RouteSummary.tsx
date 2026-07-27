@@ -143,7 +143,7 @@ export default function RouteSummary({ route, onBack }: RouteSummaryProps) {
       ) : summary ? (
         <>
           {/* Totales del período */}
-          <div className="grid grid-cols-4 gap-4 mb-2">
+          <div className="grid grid-cols-3 gap-4 mb-2">
             <div
               className={`rounded border p-4 ${
                 summary.totalFaltaSobra < 0
@@ -173,14 +173,6 @@ export default function RouteSummary({ route, onBack }: RouteSummaryProps) {
               </p>
               <p className="text-2xl font-bold text-navy-900">
                 {fmt(summary.totalDelivered)}
-              </p>
-            </div>
-            <div className="bg-white rounded border border-gray-200 p-4">
-              <p className="text-xs font-medium text-gray-500 mb-1">
-                Saldo total
-              </p>
-              <p className="text-2xl font-bold text-navy-900">
-                {fmt(summary.totalSaldo)}
               </p>
             </div>
             <div className="bg-white rounded border border-gray-200 p-4">
@@ -216,7 +208,6 @@ export default function RouteSummary({ route, onBack }: RouteSummaryProps) {
                     <th className={`${th} px-4`}>Tipo</th>
                     <th className={`${th} px-4 text-right`}>IN-OUT</th>
                     <th className={`${th} px-4 text-right`}>Total</th>
-                    <th className={`${th} px-4 text-right`}>Saldo</th>
                     <th className={`${th} px-4 text-right`}>Falta/Sobra</th>
                   </tr>
                 </thead>
@@ -247,9 +238,6 @@ export default function RouteSummary({ route, onBack }: RouteSummaryProps) {
                       </td>
                       <td className="px-4 py-3 text-right">
                         {m.liquidated ? fmt(m.total) : "—"}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {m.liquidated ? fmt(m.saldo) : "—"}
                       </td>
                       <td className="px-4 py-3 text-right">
                         {m.liquidated ? (

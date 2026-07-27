@@ -16,6 +16,9 @@ No test runner, linter, or formatter is configured. Type errors surface only thr
 
 Desktop app for a slot-machine route business. ~6 routes, ~120 machines each. Every 15 days a technician reads each machine's IN/OUT counters on paper; a data-entry person then types all records into this app. Per machine, compared against the previous record: `IN-OUT = ((in_now - in_prev) - (out_now - out_prev)) * coinValue`, `saldo = totalDelivered / 2`, `faltaSobra = totalDelivered - IN-OUT`. The core UX priority is fast keyboard-driven batch data entry (~120 records per session) in the Counter Record screen.
 
+> **Nota de rama:** en `cliente/santiago` el `saldo` no existe (ver
+> "Build para Santiago" más abajo). Todo lo demás de esta sección aplica igual.
+
 The app is 100% local/offline, single PC, single user at a time. An older C# WinForms + SQLite version is in production; its schema matches this one, so migration will be a file copy plus a one-time plaintext→Argon2 password migration.
 
 Business rule: machines whose type is named exactly 'Poker' compute
@@ -37,6 +40,21 @@ Reset baselines **can** be deleted; on delete the chain rejoins and later record
 recalculate automatically. A mis-entered reset is fixed by deleting and
 recreating it, not editing. `calculate_record` already treats any baseline as a
 non-liquidated reference — do not change it.
+
+### Build para Santiago (rama `cliente/santiago`)
+
+Este build es para un **casino propio**: la ganancia NO se reparte con el dueño
+de un local, así que el concepto de **`saldo`** (que en `main` era
+`totalDelivered / 2`, la mitad que se llevaba el dueño del local) **no significa
+nada y se eliminó por completo**: se quitó de `calculate_record` y del struct
+`CounterRecordWithCalc`, de `RouteSummary`/`RouteSummaryMachine` (`total_saldo` y
+`saldo`), de las interfaces en `types/index.ts`, y de las tablas y tarjetas de
+`MachineDetail.tsx` y `RouteSummary.tsx`.
+
+La **auditoría no cambia**: `faltaSobra = total - inOut` sigue idéntica, porque el
+faltante siempre se mide contra el total, no contra el saldo. **Todo lo demás es
+idéntico a `main`** (fórmula de IN-OUT, regla de Poker, baselines/reinicios,
+permisos). Al portar cambios entre ramas, tener presente esta única diferencia.
 
 **Permissions.** Two roles seeded in `Role`: `Admin` and `Counter Operator`. The
 operator is the data-entry person — they type records, nothing else:

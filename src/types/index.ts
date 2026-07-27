@@ -39,7 +39,6 @@ export interface RouteSummaryMachine {
     liquidated: boolean;
     inOut: number;
     total: number;
-    saldo: number;
     faltaSobra: number;
 }
 
@@ -51,7 +50,6 @@ export interface RouteSummary {
     machines: RouteSummaryMachine[];
     totalInOut: number;
     totalDelivered: number;
-    totalSaldo: number;
     totalFaltaSobra: number;
     machinesLiquidated: number;
     machinesTotal: number;
@@ -75,6 +73,5 @@ export interface CounterRecordWithCalc {
     totalDelivered: number;
     isBaseline: boolean;
     inOut: number | null;
-    saldo: number | null;
     faltaSobra: number | null;
 }
