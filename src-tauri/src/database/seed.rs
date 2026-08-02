@@ -27,19 +27,29 @@ pub fn seed_initial_data(conn: &Connection) -> Result<()> {
 
              INSERT INTO TypeMachine (typeMachineId, nameTypeMachine) VALUES
              (1, 'Poker'),
-             (2, 'MultiGame'),
-             (3, 'Pimball'),
-             (4, 'MultiPoker'),
-             (5, 'Duende'),
-             (6, 'Pikachu');
+             (2, 'Igt cristal'),
+             (3, 'Ruleta'),
+             (4, 'Ww550'),
+             (5, 'Ainsworth'),
+             (6, 'Novoline'),
+             (7, 'Wwn BB2'),
+             (8, 'Wwn BB3'),
+             (9, 'NOVOSTAR'),
+             (10, 'Luki Bill'),
+             (11, 'Multijuegos'),
+             (12, 'Reina del Nilo'),
+             (13, 'Rieles'),
+             (14, 'Helix'),
+             (15, 'Atronic');
 
              INSERT INTO CoinType (coinTypeId, numCoin) VALUES
-             (1, 10),
-             (2, 50),
-             (3, 100),
-             (4, 200),
-             (5, 500),
-             (6, 1000);"
+             (1, 1),
+             (2, 10),
+             (3, 50),
+             (4, 100),
+             (5, 200),
+             (6, 500),
+             (7, 1000);"
         )?;
 
         conn.execute(
