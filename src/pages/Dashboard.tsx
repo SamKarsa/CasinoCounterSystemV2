@@ -20,12 +20,11 @@ interface DashboardProps {
   onLogout: () => void;
 }
 
-// Encabezado pegado al borde superior del <main> scrolleable. El fondo va en el
-// th (el del tr no viaja con la celda sticky) y las esquinas se redondean acá
-// porque la tarjeta ya no puede recortar con overflow-hidden: eso rompería el
-// sticky al convertirse en el contenedor de scroll más cercano.
+// Encabezado pegado al borde superior de la tarjeta (que es la que scrollea).
+// El fondo va en el th (el del tr no viaja con la celda sticky) y z-10 lo
+// mantiene por encima de las filas.
 const th =
-  "sticky top-0 z-10 bg-navy-900 py-3 font-mono text-[11px] font-medium uppercase tracking-wider first:rounded-tl last:rounded-tr";
+  "sticky top-0 z-10 bg-navy-900 py-3 font-mono text-[11px] font-medium uppercase tracking-wider";
 
 // Orden natural: A2 < A10 < A100. Debe coincidir con natural_cmp del backend,
 // que es quien ordena la lista que llega de get_machines_by_route.
@@ -318,8 +317,9 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
               onCancel={() => setShowCreateMachine(false)}
             />
           ) : (
-            <div>
-              <div className="flex items-center justify-between gap-4 mb-6">
+            // El header queda fijo y solo la tarjeta de la tabla scrollea
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between gap-4 mb-6 shrink-0">
                 <h2 className="text-2xl font-bold text-navy-900">
                   {selectedRoute.routeName}
                 </h2>
@@ -349,86 +349,90 @@ export default function Dashboard({ user, onLogout }: DashboardProps) {
               </div>
 
               {machinesError && (
-                <div className="mb-4 bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-md">
+                <div className="mb-4 shrink-0 bg-red-50 border border-red-200 text-red-700 text-sm px-3 py-2 rounded-md">
                   {machinesError}
                 </div>
               )}
 
-              {loadingMachines ? (
-                <p className="text-gray-400">Cargando máquinas...</p>
-              ) : machines.length === 0 ? (
-                <div className="text-center py-16 text-gray-400">
-                  <p className="text-lg mb-1">Esta ruta no tiene máquinas</p>
-                  {isAdmin && (
-                    <p className="text-sm">
-                      Agregá la primera con el botón de arriba
-                    </p>
-                  )}
-                </div>
-              ) : filteredMachines.length === 0 ? (
-                <div className="text-center py-16 text-gray-400">
-                  <p className="text-lg">No hay máquinas que coincidan</p>
-                </div>
-              ) : (
-                <div className="bg-white rounded border border-gray-200">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-white text-left">
-                        <th className={`${th} px-4`}>Número</th>
-                        <th className={`${th} px-4`}>Tipo</th>
-                        <th className={`${th} px-4`}>Moneda</th>
-                        {isAdmin && <th className={`${th} px-2 w-16`}></th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredMachines.map((m) => (
-                        <tr
-                          key={m.machineId}
-                          onClick={() => setSelectedMachine(m)}
-                          className="group border-t border-gray-100 hover:bg-navy-50 cursor-pointer transition-colors"
-                        >
-                          <td className="px-4 py-3 font-mono font-medium text-navy-900">
-                            {m.numberMachine}
-                          </td>
-                          <td className="px-4 py-3 text-gray-600">
-                            {m.typeMachineName ?? "—"}
-                          </td>
-                          <td className="px-4 py-3 text-gray-600">
-                            {m.numCoin !== null ? `$${m.numCoin}` : "—"}
-                          </td>
-                          {isAdmin && (
-                            <td className="px-2 py-3 text-right whitespace-nowrap">
-                              <button
-                                type="button"
-                                title="Editar máquina"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingMachine(m);
-                                }}
-                                className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-navy-700 transition-opacity mr-3"
-                              >
-                                <Pencil size={16} />
-                              </button>
-                              <button
-                                type="button"
-                                title="Eliminar máquina"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setMachineDeleteError("");
-                                  setDeletingMachine(m);
-                                }}
-                                className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition-opacity"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </td>
-                          )}
+              <div className="flex-1 min-h-0">
+                {loadingMachines ? (
+                  <p className="text-gray-400">Cargando máquinas...</p>
+                ) : machines.length === 0 ? (
+                  <div className="text-center py-16 text-gray-400">
+                    <p className="text-lg mb-1">Esta ruta no tiene máquinas</p>
+                    {isAdmin && (
+                      <p className="text-sm">
+                        Agregá la primera con el botón de arriba
+                      </p>
+                    )}
+                  </div>
+                ) : filteredMachines.length === 0 ? (
+                  <div className="text-center py-16 text-gray-400">
+                    <p className="text-lg">No hay máquinas que coincidan</p>
+                  </div>
+                ) : (
+                  // El scroll vive en la tarjeta: el thead sticky se ancla a
+                  // ella y su overflow recorta las esquinas redondeadas.
+                  <div className="max-h-full overflow-y-auto bg-white rounded border border-gray-200">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-white text-left">
+                          <th className={`${th} px-4`}>Número</th>
+                          <th className={`${th} px-4`}>Tipo</th>
+                          <th className={`${th} px-4`}>Moneda</th>
+                          {isAdmin && <th className={`${th} px-2 w-16`}></th>}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                      </thead>
+                      <tbody>
+                        {filteredMachines.map((m) => (
+                          <tr
+                            key={m.machineId}
+                            onClick={() => setSelectedMachine(m)}
+                            className="group border-t border-gray-100 hover:bg-navy-50 cursor-pointer transition-colors"
+                          >
+                            <td className="px-4 py-3 font-mono font-medium text-navy-900">
+                              {m.numberMachine}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600">
+                              {m.typeMachineName ?? "—"}
+                            </td>
+                            <td className="px-4 py-3 text-gray-600">
+                              {m.numCoin !== null ? `$${m.numCoin}` : "—"}
+                            </td>
+                            {isAdmin && (
+                              <td className="px-2 py-3 text-right whitespace-nowrap">
+                                <button
+                                  type="button"
+                                  title="Editar máquina"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingMachine(m);
+                                  }}
+                                  className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-navy-700 transition-opacity mr-3"
+                                >
+                                  <Pencil size={16} />
+                                </button>
+                                <button
+                                  type="button"
+                                  title="Eliminar máquina"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMachineDeleteError("");
+                                    setDeletingMachine(m);
+                                  }}
+                                  className="inline-flex align-middle opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-600 transition-opacity"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
             </div>
           )
         ) : (
