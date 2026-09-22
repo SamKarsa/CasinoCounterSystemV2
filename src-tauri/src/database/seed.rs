@@ -39,7 +39,8 @@ pub fn seed_initial_data(conn: &Connection) -> Result<()> {
              (3, 100),
              (4, 200),
              (5, 500),
-             (6, 1000);"
+             (6, 1000),
+             (7, 1);"
         )?;
 
         conn.execute(
