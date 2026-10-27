@@ -51,6 +51,8 @@ pub struct CounterRecordWithCalc {
     pub total_delivered: f64,
     pub is_baseline: bool,
     // Calculados en Rust; None si is_baseline (no hay contra qué comparar)
+    // prizes = premios pagados: (Δout) * moneda, o (Δin) * moneda en Poker
+    pub prizes: Option<f64>,
     pub in_out: Option<f64>,
     pub falta_sobra: Option<f64>,
 }
@@ -65,6 +67,7 @@ pub struct RouteSummaryMachine {
     pub number_machine: String,
     pub type_machine_name: Option<String>,
     pub liquidated: bool,
+    pub prizes: f64,
     pub in_out: f64,
     pub total: f64,
     pub falta_sobra: f64,

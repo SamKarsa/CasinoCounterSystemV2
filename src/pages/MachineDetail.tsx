@@ -48,6 +48,13 @@ export default function MachineDetail({
   onBack,
   isAdmin,
 }: MachineDetailProps) {
+  // En las Poker los contadores no son IN/OUT sino Physical Coin (premios) y
+  // Yield (ganancia): se digitan en los campos IN y OUT respectivamente, pero
+  // se muestran con su nombre real.
+  const isPoker = machine.typeMachineName === "Poker";
+  const inLabel = isPoker ? "Physical" : "IN";
+  const outLabel = isPoker ? "Yield" : "OUT";
+
   const [records, setRecords] = useState<CounterRecordWithCalc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -170,14 +177,16 @@ export default function MachineDetail({
     ) {
       return null;
     }
-    const isPoker = machine.typeMachineName === "Poker";
+    const deltaIn = inN - basisRecord.counterIn;
+    const deltaOut = outN - basisRecord.counterOut;
+    // Poker: yield (OUT) es el IN-OUT y physical (IN) son los premios
     const inOut = isPoker
-      ? (outN - basisRecord.counterOut) * machine.numCoin
-      : (inN - basisRecord.counterIn - (outN - basisRecord.counterOut)) *
-        machine.numCoin;
+      ? deltaOut * machine.numCoin
+      : (deltaIn - deltaOut) * machine.numCoin;
+    const prizes = (isPoker ? deltaIn : deltaOut) * machine.numCoin;
     const faltaSobra = Number.isNaN(totalN) ? null : totalN - inOut;
-    return { inOut, faltaSobra };
-  }, [inValue, outValue, totalValue, basisRecord, machine.numCoin, machine.typeMachineName]);
+    return { prizes, inOut, faltaSobra };
+  }, [inValue, outValue, totalValue, basisRecord, machine.numCoin, isPoker]);
 
   // Entrar a editar una fila (cualquier registro, incluidos los baselines: al
   // editar un baseline el total va deshabilitado en 0 y el preview se oculta)
@@ -403,8 +412,9 @@ export default function MachineDetail({
                 <thead>
                   <tr className="text-white text-left">
                     <th className={`${th} px-3`}>Fecha</th>
-                    <th className={`${th} px-3 text-right`}>IN</th>
-                    <th className={`${th} px-3 text-right`}>OUT</th>
+                    <th className={`${th} px-3 text-right`}>{inLabel}</th>
+                    <th className={`${th} px-3 text-right`}>{outLabel}</th>
+                    <th className={`${th} px-3 text-right`}>Premios</th>
                     <th className={`${th} px-3 text-right`}>IN-OUT</th>
                     <th className={`${th} px-3 text-right`}>Total</th>
                     <th className={`${th} px-3 text-right`}>Falta/Sobra</th>
@@ -445,7 +455,7 @@ export default function MachineDetail({
                         {r.isBaseline ? (
                           <>
                             <td
-                              colSpan={3}
+                              colSpan={4}
                               className="px-3 py-2.5 text-right text-gray-400 italic"
                             >
                               {r.counterRecordId === installBaselineId
@@ -489,6 +499,9 @@ export default function MachineDetail({
                           </>
                         ) : (
                           <>
+                            <td className="px-3 py-2.5 text-right text-gray-700">
+                              {r.prizes !== null ? fmt(r.prizes) : "—"}
+                            </td>
                             <td
                               className={`px-3 py-2.5 text-right ${
                                 r.inOut !== null && r.inOut < 0
@@ -577,7 +590,7 @@ export default function MachineDetail({
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
-                  IN
+                  {inLabel}
                 </label>
                 <input
                   ref={inRef}
@@ -592,7 +605,7 @@ export default function MachineDetail({
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
-                  OUT
+                  {outLabel}
                 </label>
                 <input
                   type="number"
@@ -622,6 +635,12 @@ export default function MachineDetail({
               {/* Preview en vivo (no aplica a la línea base: no se liquida) */}
               {preview && !editingBaseline && (
                 <div className="bg-gray-50 rounded-md p-3 text-sm space-y-1">
+                  <div className="flex justify-between text-gray-600">
+                    <span>Premios</span>
+                    <span className="font-medium text-gray-900">
+                      {fmt(preview.prizes)}
+                    </span>
+                  </div>
                   <div className="flex justify-between text-gray-600">
                     <span>IN-OUT</span>
                     <span className="font-medium text-gray-900">
@@ -732,7 +751,7 @@ export default function MachineDetail({
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
-                  IN
+                  {inLabel}
                 </label>
                 <input
                   type="number"
@@ -746,7 +765,7 @@ export default function MachineDetail({
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">
-                  OUT
+                  {outLabel}
                 </label>
                 <input
                   type="number"

@@ -28,26 +28,35 @@ fn map_raw_record(row: &rusqlite::Row) -> rusqlite::Result<RawRecord> {
 
 // Lógica de negocio compartida: calcula un registro comparándolo contra el
 // inmediatamente anterior. Baseline (o sin anterior) => sin cálculo.
-// Poker: el IN-OUT usa solo el OUT; el resto de tipos usa (Δin - Δout).
+// Poker: sus contadores son Physical Coin (premios, digitado en IN) y Yield
+// (ganancia, digitado en OUT), independientes entre sí. Por eso en Poker el
+// IN-OUT sale de Δout (yield) y los premios de Δin (physical); en el resto de
+// tipos es al revés: IN-OUT = (Δin - Δout) y premios = Δout.
 fn calculate_record(
     current: &RawRecord,
     prev: Option<&RawRecord>,
     num_coin: i64,
     is_poker: bool,
 ) -> CounterRecordWithCalc {
-    let (in_out, falta_sobra) = match (current.is_baseline, prev) {
+    let (prizes, in_out, falta_sobra) = match (current.is_baseline, prev) {
         (false, Some(p)) => {
             let delta_in = current.counter_in - p.counter_in;
             let delta_out = current.counter_out - p.counter_out;
-            let in_out = if is_poker {
-                (delta_out as f64) * num_coin as f64
+            let (prizes, in_out) = if is_poker {
+                (
+                    (delta_in as f64) * num_coin as f64,
+                    (delta_out as f64) * num_coin as f64,
+                )
             } else {
-                ((delta_in - delta_out) as f64) * num_coin as f64
+                (
+                    (delta_out as f64) * num_coin as f64,
+                    ((delta_in - delta_out) as f64) * num_coin as f64,
+                )
             };
             let falta_sobra = current.total_delivered - in_out;
-            (Some(in_out), Some(falta_sobra))
+            (Some(prizes), Some(in_out), Some(falta_sobra))
         }
-        _ => (None, None),
+        _ => (None, None, None),
     };
 
     CounterRecordWithCalc {
@@ -57,6 +66,7 @@ fn calculate_record(
         counter_out: current.counter_out,
         total_delivered: current.total_delivered,
         is_baseline: current.is_baseline,
+        prizes,
         in_out,
         falta_sobra,
     }
@@ -683,6 +693,7 @@ pub fn get_route_summary(
             })?);
         }
 
+        let mut prizes = 0.0;
         let mut in_out = 0.0;
         let mut total = 0.0;
         let mut falta_sobra = 0.0;
@@ -700,6 +711,7 @@ pub fn get_route_summary(
             }
 
             liquidated = true;
+            prizes += calc.prizes.unwrap_or(0.0);
             in_out += calc.in_out.unwrap_or(0.0);
             total += calc.total_delivered;
             falta_sobra += calc.falta_sobra.unwrap_or(0.0);
@@ -710,6 +722,7 @@ pub fn get_route_summary(
             number_machine,
             type_machine_name,
             liquidated,
+            prizes,
             in_out,
             total,
             falta_sobra,
@@ -875,6 +888,56 @@ mod tests {
         let reinicio = insert(&conn, "2026-02-01", 0, 0, 0.0, true);
 
         assert!(delete_counter_record_impl(&conn, reinicio).is_ok());
+    }
+
+    fn raw(cin: i64, cout: i64, total: f64, baseline: bool) -> RawRecord {
+        RawRecord {
+            counter_record_id: 1,
+            record_date: "2026-01-15".into(),
+            counter_in: cin,
+            counter_out: cout,
+            total_delivered: total,
+            is_baseline: baseline,
+        }
+    }
+
+    // Máquina normal: IN-OUT = (Δin - Δout) * moneda, premios = Δout * moneda
+    #[test]
+    fn premios_en_maquina_normal_usan_el_out() {
+        let prev = raw(1000, 400, 0.0, true);
+        let current = raw(1500, 600, 30_000.0, false);
+
+        let calc = calculate_record(&current, Some(&prev), 100, false);
+        assert_eq!(calc.prizes, Some(20_000.0)); // (600-400) * 100
+        assert_eq!(calc.in_out, Some(30_000.0)); // (500 - 200) * 100
+        assert_eq!(calc.falta_sobra, Some(0.0));
+    }
+
+    // Poker: physical (premios) va en IN y yield (IN-OUT) en OUT, invertido
+    #[test]
+    fn premios_en_poker_usan_el_in() {
+        let prev = raw(1000, 400, 0.0, true);
+        let current = raw(1500, 600, 30_000.0, false);
+
+        let calc = calculate_record(&current, Some(&prev), 100, true);
+        assert_eq!(calc.prizes, Some(50_000.0)); // physical: (1500-1000) * 100
+        assert_eq!(calc.in_out, Some(20_000.0)); // yield: (600-400) * 100
+        assert_eq!(calc.falta_sobra, Some(10_000.0)); // 30.000 - 20.000
+    }
+
+    // Un baseline no se liquida: tampoco tiene premios
+    #[test]
+    fn baseline_no_tiene_premios() {
+        let prev = raw(1000, 400, 0.0, false);
+        let current = raw(0, 0, 0.0, true);
+
+        assert!(calculate_record(&current, Some(&prev), 100, false)
+            .prizes
+            .is_none());
+        // Y sin anterior tampoco hay contra qué comparar
+        assert!(calculate_record(&raw(10, 5, 0.0, false), None, 100, false)
+            .prizes
+            .is_none());
     }
 
     // La instalación (baseline más antiguo) nunca se borra.

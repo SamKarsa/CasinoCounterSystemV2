@@ -212,6 +212,7 @@ export default function RouteSummary({ route, onBack }: RouteSummaryProps) {
                     <tr className="text-white text-left">
                       <th className={`${th} px-4`}>Número</th>
                       <th className={`${th} px-4`}>Tipo</th>
+                      <th className={`${th} px-4 text-right`}>Premios</th>
                       <th className={`${th} px-4 text-right`}>IN-OUT</th>
                       <th className={`${th} px-4 text-right`}>Total</th>
                       <th className={`${th} px-4 text-right`}>Falta/Sobra</th>
@@ -234,6 +235,9 @@ export default function RouteSummary({ route, onBack }: RouteSummaryProps) {
                         </td>
                         <td className="px-4 py-3">
                           {m.typeMachineName ?? "—"}
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          {m.liquidated ? fmt(m.prizes) : "—"}
                         </td>
                         <td
                           className={`px-4 py-3 text-right ${

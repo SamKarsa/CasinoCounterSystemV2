@@ -37,6 +37,7 @@ export interface RouteSummaryMachine {
     typeMachineName: string | null;
     // false = la máquina no tuvo registros en el período (sumas en 0)
     liquidated: boolean;
+    prizes: number;
     inOut: number;
     total: number;
     faltaSobra: number;
@@ -72,6 +73,8 @@ export interface CounterRecordWithCalc {
     counterOut: number;
     totalDelivered: number;
     isBaseline: boolean;
+    // premios pagados: (Δout) * moneda, o (Δin) * moneda en Poker
+    prizes: number | null;
     inOut: number | null;
     faltaSobra: number | null;
 }

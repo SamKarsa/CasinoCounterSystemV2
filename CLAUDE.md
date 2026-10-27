@@ -21,10 +21,29 @@ Desktop app for a slot-machine route business. ~6 routes, ~120 machines each. Ev
 
 The app is 100% local/offline, single PC, single user at a time. An older C# WinForms + SQLite version is in production; its schema matches this one, so migration will be a file copy plus a one-time plaintext→Argon2 password migration.
 
-Business rule: machines whose type is named exactly 'Poker' compute
-IN-OUT as (Δout) * coinValue (only the OUT counter). All other types
-use ((Δin) - (Δout)) * coinValue. The comparison is by
-nameTypeMachine = 'Poker' — do not rename that seed row.
+**Premios (prizes).** Every liquidated record also reports the prizes paid out:
+`premios = (Δout) * coinValue` on normal machines. It is an independent figure —
+it does not feed `IN-OUT` or `faltaSobra`. Backend: `prizes: Option<f64>` in
+`CounterRecordWithCalc`, computed in `calculate_record` (`None` on baselines and
+when there is no previous record).
+
+**Máquinas Poker.** Machines whose type is named exactly 'Poker' do not have
+IN/OUT counters: they have **Physical Coin** (the prizes the machine paid) and
+**Yield** (the earnings). The two are *independent* — they are never subtracted
+from each other. The data-entry convention is: **Physical goes in the IN field,
+Yield in the OUT field**. Because of that, on Poker both formulas are inverted
+with respect to a normal machine:
+
+| | IN-OUT | Premios |
+| --- | --- | --- |
+| Normal | `(Δin - Δout) * coinValue` | `(Δout) * coinValue` |
+| Poker | `(Δout) * coinValue` (yield) | `(Δin) * coinValue` (physical) |
+
+`faltaSobra = totalDelivered - IN-OUT` is the same for both. Detection is by
+`nameTypeMachine = 'Poker'` — do not rename that seed row. In `MachineDetail` the
+labels follow the same rule: on a Poker machine the IN/OUT column headers and
+form labels read PHYSICAL/YIELD (`machine.typeMachineName === "Poker"`), while
+the fields written to the DB remain `counterIn`/`counterOut`.
 
 **Baselines / reset counters.** A `CounterRecord` with `isBaseline = 1` is a
 reference point: it is not liquidated (no IN-OUT/saldo/falta-sobra) and the next
