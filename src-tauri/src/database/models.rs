@@ -28,6 +28,8 @@ pub struct Machine {
     pub num_coin: Option<i32>,
     pub route_id: i64,
     pub route_name: Option<String>,
+    // Porcentaje que se lleva el cliente (dueño del local)
+    pub client_percent: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -50,6 +52,8 @@ pub struct CounterRecordWithCalc {
     pub counter_out: i64,
     pub total_delivered: f64,
     pub is_baseline: bool,
+    // Porcentaje del cliente copiado al registro al crearlo (acuerdo vigente ese día)
+    pub client_percent: i64,
     // Calculados en Rust; None si is_baseline (no hay contra qué comparar)
     pub in_out: Option<f64>,
     pub saldo: Option<f64>,

@@ -67,9 +67,11 @@ fn create_tables(conn: &Connection) -> Result<()> {
             typeMachineId INTEGER NOT NULL,
             coinTypeId INTEGER NOT NULL,
             routeId INTEGER NOT NULL,
+            clientPercent INTEGER NOT NULL DEFAULT 50,
             FOREIGN KEY (typeMachineId) REFERENCES TypeMachine(typeMachineId),
             FOREIGN KEY (coinTypeId) REFERENCES CoinType(coinTypeId),
-            FOREIGN KEY (routeId) REFERENCES Route(routeId)
+            FOREIGN KEY (routeId) REFERENCES Route(routeId),
+            CHECK (clientPercent BETWEEN 0 AND 100)
         );
 
         CREATE TABLE IF NOT EXISTS CounterRecord (
@@ -80,9 +82,11 @@ fn create_tables(conn: &Connection) -> Result<()> {
             totalDelivered REAL NOT NULL,
             isBaseline INTEGER NOT NULL DEFAULT 0,
             machineId INTEGER NOT NULL,
+            clientPercent INTEGER NOT NULL DEFAULT 50,
             FOREIGN KEY (machineId) REFERENCES Machine(machineId),
             CHECK (counterIn >= 0 AND counterOut >= 0),
-            CHECK (totalDelivered >= 0)
+            CHECK (totalDelivered >= 0),
+            CHECK (clientPercent BETWEEN 0 AND 100)
         );
 
         CREATE INDEX IF NOT EXISTS idx_machine_route ON Machine(routeId);

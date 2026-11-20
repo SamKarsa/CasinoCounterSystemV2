@@ -9,12 +9,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm run build` — runs `tsc` (type-check, no emit) then `vite build` into `dist/`. Used by Tauri as `beforeBuildCommand`.
 - `npm run tauri build` — production desktop bundle.
 - `cargo check` / `cargo build` inside `src-tauri/` — compile the Rust side without launching the app.
+- `cargo test` inside `src-tauri/` — run the Rust unit tests (in-memory SQLite, e.g. the `tests` module in `commands/records.rs`). There are no frontend tests.
 
-No test runner, linter, or formatter is configured. Type errors surface only through `tsc` via `npm run build`.
+Standard verification after a change: `cargo check` and `cargo test` (in `src-tauri/`) plus `npm run build` (type-check + bundle). No linter or formatter is configured; frontend type errors surface only through `tsc` via `npm run build`.
 
 ## Business context
 
-Desktop app for a slot-machine route business. ~6 routes, ~120 machines each. Every 15 days a technician reads each machine's IN/OUT counters on paper; a data-entry person then types all records into this app. Per machine, compared against the previous record: `IN-OUT = ((in_now - in_prev) - (out_now - out_prev)) * coinValue`, `saldo = totalDelivered / 2`, `faltaSobra = totalDelivered - IN-OUT`. The core UX priority is fast keyboard-driven batch data entry (~120 records per session) in the Counter Record screen.
+Desktop app for a slot-machine route business. ~6 routes, ~120 machines each. Every 15 days a technician reads each machine's IN/OUT counters on paper; a data-entry person then types all records into this app. Per machine, compared against the previous record: `IN-OUT = ((in_now - in_prev) - (out_now - out_prev)) * coinValue`, `saldo = totalDelivered * (100 - clientPercent) / 100` (see revenue split below), `faltaSobra = totalDelivered - IN-OUT`. The core UX priority is fast keyboard-driven batch data entry (~120 records per session) in the Counter Record screen.
 
 The app is 100% local/offline, single PC, single user at a time. An older C# WinForms + SQLite version is in production; its schema matches this one, so migration will be a file copy plus a one-time plaintext→Argon2 password migration.
 
@@ -22,6 +23,19 @@ Business rule: machines whose type is named exactly 'Poker' compute
 IN-OUT as (Δout) * coinValue (only the OUT counter). All other types
 use ((Δin) - (Δout)) * coinValue. The comparison is by
 nameTypeMachine = 'Poker' — do not rename that seed row.
+
+**Revenue split (clientPercent).** Each machine has a configurable
+`Machine.clientPercent` (allowed values 40, 45, 50; default 50, validated in
+`create_machine`/`update_machine`). It is the share taken by the **client**
+(the venue owner), not the company. `saldo` is the **company's** share, i.e. the
+complement: `saldo = totalDelivered * (100 - clientPercent) / 100`. The percentage
+is **copied** to `CounterRecord.clientPercent` when a record (normal, baseline or
+reset) is created, read from `Machine`, never sent by the frontend.
+`calculate_record` uses the record's own percentage, so changing a machine's
+percentage does **not** recalculate history: each record settles with the
+agreement in force on its day. Editing a record (`update_counter_record`) never
+changes its percentage. The split does not affect IN-OUT or falta/sobra (the
+audit numbers).
 
 **Baselines / reset counters.** A `CounterRecord` with `isBaseline = 1` is a
 reference point: it is not liquidated (no IN-OUT/saldo/falta-sobra) and the next

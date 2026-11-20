@@ -5,9 +5,20 @@ use rusqlite::{params, OptionalExtension};
 
 const MAX_MACHINE_NUMBER_LEN: usize = 50;
 
+// Porcentajes de reparto permitidos (lo que se lleva el cliente)
+const ALLOWED_CLIENT_PERCENTS: [i64; 3] = [40, 45, 50];
+
+fn validate_client_percent(client_percent: i64) -> Result<(), String> {
+    if ALLOWED_CLIENT_PERCENTS.contains(&client_percent) {
+        Ok(())
+    } else {
+        Err("El porcentaje del cliente debe ser 40, 45 o 50".to_string())
+    }
+}
+
 // SELECT reutilizable con los JOIN que llenan los campos de display del struct Machine
 const MACHINE_SELECT: &str = "SELECT m.machineId, m.numberMachine, m.typeMachineId,
-            t.nameTypeMachine, m.coinTypeId, c.numCoin, m.routeId, r.routeName
+            t.nameTypeMachine, m.coinTypeId, c.numCoin, m.routeId, r.routeName, m.clientPercent
      FROM Machine m
      INNER JOIN TypeMachine t ON m.typeMachineId = t.typeMachineId
      INNER JOIN CoinType c ON m.coinTypeId = c.coinTypeId
@@ -23,6 +34,7 @@ fn map_machine_row(row: &rusqlite::Row) -> rusqlite::Result<Machine> {
         num_coin: row.get(5)?,
         route_id: row.get(6)?,
         route_name: row.get(7)?,
+        client_percent: row.get(8)?,
     })
 }
 
@@ -140,6 +152,7 @@ pub fn create_machine(
     type_machine_id: i64,
     coin_type_id: i64,
     route_id: i64,
+    client_percent: i64,
     initial_in: i64,
     initial_out: i64,
     db: State<DbConnection>,
@@ -158,6 +171,7 @@ pub fn create_machine(
     if initial_in < 0 || initial_out < 0 {
         return Err("Los contadores iniciales no pueden ser negativos".to_string());
     }
+    validate_client_percent(client_percent)?;
 
     let mut conn = db
         .0
@@ -191,9 +205,9 @@ pub fn create_machine(
     })?;
 
     tx.execute(
-        "INSERT INTO Machine (numberMachine, typeMachineId, coinTypeId, routeId)
-         VALUES (?1, ?2, ?3, ?4)",
-        params![number, type_machine_id, coin_type_id, route_id],
+        "INSERT INTO Machine (numberMachine, typeMachineId, coinTypeId, routeId, clientPercent)
+         VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![number, type_machine_id, coin_type_id, route_id, client_percent],
     )
     .map_err(|e| {
         // numberMachine es UNIQUE; distinguirlo de una violación de FK (id inexistente)
@@ -213,9 +227,9 @@ pub fn create_machine(
     // Primer registro: línea base de instalación. No se liquida (totalDelivered = 0);
     // los cálculos comparan cada registro contra el anterior y este no tiene anterior.
     tx.execute(
-        "INSERT INTO CounterRecord (recordDate, counterIn, counterOut, totalDelivered, isBaseline, machineId)
-         VALUES (?1, ?2, ?3, 0, 1, ?4)",
-        params![today, initial_in, initial_out, machine_id],
+        "INSERT INTO CounterRecord (recordDate, counterIn, counterOut, totalDelivered, isBaseline, machineId, clientPercent)
+         VALUES (?1, ?2, ?3, 0, 1, ?4, ?5)",
+        params![today, initial_in, initial_out, machine_id, client_percent],
     )
     .map_err(|e| {
         eprintln!("machines: insert baseline record failed: {}", e);
@@ -242,6 +256,7 @@ pub fn update_machine(
     type_machine_id: i64,
     coin_type_id: i64,
     route_id: i64,
+    client_percent: i64,
     db: State<DbConnection>,
 ) -> Result<Machine, String> {
     let number = number_machine.trim();
@@ -255,6 +270,7 @@ pub fn update_machine(
             MAX_MACHINE_NUMBER_LEN
         ));
     }
+    validate_client_percent(client_percent)?;
 
     let conn = db
         .0
@@ -280,9 +296,10 @@ pub fn update_machine(
     let affected = conn
         .execute(
             "UPDATE Machine
-             SET numberMachine = ?1, typeMachineId = ?2, coinTypeId = ?3, routeId = ?4
-             WHERE machineId = ?5",
-            params![number, type_machine_id, coin_type_id, route_id, machine_id],
+             SET numberMachine = ?1, typeMachineId = ?2, coinTypeId = ?3, routeId = ?4,
+                 clientPercent = ?5
+             WHERE machineId = ?6",
+            params![number, type_machine_id, coin_type_id, route_id, client_percent, machine_id],
         )
         .map_err(|e| {
             // numberMachine es UNIQUE; distinguirlo de una violación de FK (id inexistente)

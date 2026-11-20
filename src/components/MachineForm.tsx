@@ -8,6 +8,9 @@ import {
 } from "../lib/tauri";
 import type { Machine, TypeMachine, CoinType, Route } from "../types";
 
+// Porcentajes de reparto permitidos (lo que se lleva el cliente)
+const CLIENT_PERCENTS = [40, 45, 50];
+
 interface MachineFormProps {
   routeId: number;
   routeName: string;
@@ -35,6 +38,9 @@ export default function MachineForm({
     machine?.typeMachineId ?? 0
   );
   const [coinTypeId, setCoinTypeId] = useState<number>(machine?.coinTypeId ?? 0);
+  const [clientPercent, setClientPercent] = useState<number>(
+    machine?.clientPercent ?? 50
+  );
   const [selectedRouteId, setSelectedRouteId] = useState<number>(
     machine?.routeId ?? routeId
   );
@@ -77,6 +83,7 @@ export default function MachineForm({
           typeMachineId,
           coinTypeId,
           routeId: selectedRouteId,
+          clientPercent,
         });
         onUpdated?.(updated);
       } else {
@@ -85,6 +92,7 @@ export default function MachineForm({
           typeMachineId,
           coinTypeId,
           routeId,
+          clientPercent,
           initialIn: parseInt(initialIn, 10),
           initialOut: parseInt(initialOut, 10),
         });
@@ -160,6 +168,22 @@ export default function MachineForm({
               ))}
             </select>
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              % Cliente
+            </label>
+            <select
+              value={clientPercent}
+              onChange={(e) => setClientPercent(Number(e.target.value))}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-navy-500 bg-white"
+            >
+              {CLIENT_PERCENTS.map((p) => (
+                <option key={p} value={p}>
+                  {p}%
+                </option>
+              ))}
+            </select>
+          </div>
           {isEdit ? (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -177,9 +201,7 @@ export default function MachineForm({
                 ))}
               </select>
             </div>
-          ) : (
-            <div></div>
-          )}
+          ) : null}
           {!isEdit && (
             <>
               <div>

@@ -20,6 +20,8 @@ export interface Machine {
     numCoin: number | null;
     routeId: number;
     routeName: string | null;
+    // Porcentaje que se lleva el cliente (dueño del local)
+    clientPercent: number;
 }
 
 export interface CounterRecord {
@@ -74,6 +76,8 @@ export interface CounterRecordWithCalc {
     counterOut: number;
     totalDelivered: number;
     isBaseline: boolean;
+    // % del cliente copiado al registro al crearlo
+    clientPercent: number;
     inOut: number | null;
     saldo: number | null;
     faltaSobra: number | null;

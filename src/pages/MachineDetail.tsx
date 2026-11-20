@@ -176,8 +176,21 @@ export default function MachineDetail({
       : (inN - basisRecord.counterIn - (outN - basisRecord.counterOut)) *
         machine.numCoin;
     const faltaSobra = Number.isNaN(totalN) ? null : totalN - inOut;
-    return { inOut, faltaSobra };
-  }, [inValue, outValue, totalValue, basisRecord, machine.numCoin, machine.typeMachineName]);
+    // Al editar se conserva el % del registro; uno nuevo toma el de la máquina
+    const pct = editingIndex >= 0 ? records[editingIndex].clientPercent : machine.clientPercent;
+    const saldo = Number.isNaN(totalN) ? null : (totalN * (100 - pct)) / 100;
+    return { inOut, faltaSobra, saldo };
+  }, [
+    inValue,
+    outValue,
+    totalValue,
+    basisRecord,
+    editingIndex,
+    records,
+    machine.numCoin,
+    machine.typeMachineName,
+    machine.clientPercent,
+  ]);
 
   // Entrar a editar una fila (cualquier registro, incluidos los baselines: al
   // editar un baseline el total va deshabilitado en 0 y el preview se oculta)
@@ -334,7 +347,8 @@ export default function MachineDetail({
           </h2>
           <p className="text-gray-500 text-sm">
             {machine.typeMachineName ?? "—"} · $
-            {machine.numCoin ?? "—"} · {machine.routeName ?? "—"}
+            {machine.numCoin ?? "—"} · {machine.routeName ?? "—"} · Cliente{" "}
+            {machine.clientPercent}%
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -632,6 +646,14 @@ export default function MachineDetail({
                       {fmt(preview.inOut)}
                     </span>
                   </div>
+                  {preview.saldo !== null && (
+                    <div className="flex justify-between text-gray-600">
+                      <span>Saldo</span>
+                      <span className="font-medium text-gray-900">
+                        {fmt(preview.saldo)}
+                      </span>
+                    </div>
+                  )}
                   {preview.faltaSobra !== null && (
                     <div className="flex justify-between text-gray-600">
                       <span>Falta/Sobra</span>

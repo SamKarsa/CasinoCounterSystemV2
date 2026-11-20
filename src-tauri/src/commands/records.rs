@@ -13,6 +13,8 @@ struct RawRecord {
     counter_out: i64,
     total_delivered: f64,
     is_baseline: bool,
+    // Porcentaje del cliente vigente cuando se creó el registro
+    client_percent: i64,
 }
 
 fn map_raw_record(row: &rusqlite::Row) -> rusqlite::Result<RawRecord> {
@@ -23,6 +25,7 @@ fn map_raw_record(row: &rusqlite::Row) -> rusqlite::Result<RawRecord> {
         counter_out: row.get(3)?,
         total_delivered: row.get(4)?,
         is_baseline: row.get::<_, i64>(5)? != 0,
+        client_percent: row.get(6)?,
     })
 }
 
@@ -44,7 +47,10 @@ fn calculate_record(
             } else {
                 ((delta_in - delta_out) as f64) * num_coin as f64
             };
-            let saldo = current.total_delivered / 2.0;
+            // Saldo = parte de la EMPRESA: el complemento del % del cliente,
+            // con el porcentaje guardado en el propio registro.
+            let saldo =
+                current.total_delivered * (100 - current.client_percent) as f64 / 100.0;
             let falta_sobra = current.total_delivered - in_out;
             (Some(in_out), Some(saldo), Some(falta_sobra))
         }
@@ -58,6 +64,7 @@ fn calculate_record(
         counter_out: current.counter_out,
         total_delivered: current.total_delivered,
         is_baseline: current.is_baseline,
+        client_percent: current.client_percent,
         in_out,
         saldo,
         falta_sobra,
@@ -82,6 +89,20 @@ fn machine_calc_info(conn: &rusqlite::Connection, machine_id: i64) -> Result<(i6
     })
 }
 
+// Acuerdo VIGENTE de la máquina: se copia a cada registro nuevo para que el
+// histórico no cambie si después se modifica el porcentaje de la máquina.
+fn machine_client_percent(conn: &rusqlite::Connection, machine_id: i64) -> Result<i64, String> {
+    conn.query_row(
+        "SELECT clientPercent FROM Machine WHERE machineId = ?1",
+        [machine_id],
+        |row| row.get(0),
+    )
+    .map_err(|e| {
+        eprintln!("records: failed to read machine client percent: {}", e);
+        "No se pudo obtener la información de la máquina".to_string()
+    })
+}
+
 #[tauri::command]
 pub fn get_records_by_machine(
     machine_id: i64,
@@ -97,7 +118,7 @@ pub fn get_records_by_machine(
     let mut stmt = conn
         .prepare(
             "SELECT counterRecordId, recordDate, counterIn, counterOut,
-                    totalDelivered, isBaseline
+                    totalDelivered, isBaseline, clientPercent
              FROM CounterRecord
              WHERE machineId = ?1
              ORDER BY recordDate ASC, counterRecordId ASC",
@@ -162,7 +183,7 @@ pub fn create_counter_record(
     let last = conn
         .query_row(
             "SELECT counterRecordId, recordDate, counterIn, counterOut,
-                    totalDelivered, isBaseline
+                    totalDelivered, isBaseline, clientPercent
              FROM CounterRecord
              WHERE machineId = ?1
              ORDER BY recordDate DESC, counterRecordId DESC
@@ -200,10 +221,12 @@ pub fn create_counter_record(
         ));
     }
 
+    let client_percent = machine_client_percent(&conn, machine_id)?;
+
     conn.execute(
-        "INSERT INTO CounterRecord (recordDate, counterIn, counterOut, totalDelivered, isBaseline, machineId)
-         VALUES (?1, ?2, ?3, ?4, 0, ?5)",
-        params![record_date, counter_in, counter_out, total_delivered, machine_id],
+        "INSERT INTO CounterRecord (recordDate, counterIn, counterOut, totalDelivered, isBaseline, machineId, clientPercent)
+         VALUES (?1, ?2, ?3, ?4, 0, ?5, ?6)",
+        params![record_date, counter_in, counter_out, total_delivered, machine_id, client_percent],
     )
     .map_err(|e| {
         eprintln!("records: insert failed: {}", e);
@@ -219,6 +242,7 @@ pub fn create_counter_record(
         counter_out,
         total_delivered,
         is_baseline: false,
+        client_percent,
     };
 
     // Mismo cálculo que get_records_by_machine, contra el registro anterior
@@ -258,7 +282,7 @@ pub fn create_baseline_record(
     let last = conn
         .query_row(
             "SELECT counterRecordId, recordDate, counterIn, counterOut,
-                    totalDelivered, isBaseline
+                    totalDelivered, isBaseline, clientPercent
              FROM CounterRecord
              WHERE machineId = ?1
              ORDER BY recordDate DESC, counterRecordId DESC
@@ -287,11 +311,13 @@ pub fn create_baseline_record(
         ));
     }
 
+    let client_percent = machine_client_percent(&conn, machine_id)?;
+
     // isBaseline = 1 y totalDelivered = 0 forzado (un baseline no se liquida)
     conn.execute(
-        "INSERT INTO CounterRecord (recordDate, counterIn, counterOut, totalDelivered, isBaseline, machineId)
-         VALUES (?1, ?2, ?3, 0, 1, ?4)",
-        params![record_date, counter_in, counter_out, machine_id],
+        "INSERT INTO CounterRecord (recordDate, counterIn, counterOut, totalDelivered, isBaseline, machineId, clientPercent)
+         VALUES (?1, ?2, ?3, 0, 1, ?4, ?5)",
+        params![record_date, counter_in, counter_out, machine_id, client_percent],
     )
     .map_err(|e| {
         eprintln!("records: baseline insert failed: {}", e);
@@ -307,6 +333,7 @@ pub fn create_baseline_record(
         counter_out,
         total_delivered: 0.0,
         is_baseline: true,
+        client_percent,
     };
 
     // Baseline: los campos calculados salen en None
@@ -323,14 +350,14 @@ fn neighbor_record(
     previous: bool,
 ) -> Result<Option<RawRecord>, String> {
     let sql = if previous {
-        "SELECT counterRecordId, recordDate, counterIn, counterOut, totalDelivered, isBaseline
+        "SELECT counterRecordId, recordDate, counterIn, counterOut, totalDelivered, isBaseline, clientPercent
          FROM CounterRecord
          WHERE machineId = ?1
            AND (recordDate < ?2 OR (recordDate = ?2 AND counterRecordId < ?3))
          ORDER BY recordDate DESC, counterRecordId DESC
          LIMIT 1"
     } else {
-        "SELECT counterRecordId, recordDate, counterIn, counterOut, totalDelivered, isBaseline
+        "SELECT counterRecordId, recordDate, counterIn, counterOut, totalDelivered, isBaseline, clientPercent
          FROM CounterRecord
          WHERE machineId = ?1
            AND (recordDate > ?2 OR (recordDate = ?2 AND counterRecordId > ?3))
@@ -405,11 +432,11 @@ fn update_counter_record_impl(
     // El registro a editar, con su machineId
     let target = conn
         .query_row(
-            "SELECT counterRecordId, recordDate, counterIn, counterOut, totalDelivered, isBaseline, machineId
+            "SELECT counterRecordId, recordDate, counterIn, counterOut, totalDelivered, isBaseline, clientPercent, machineId
              FROM CounterRecord
              WHERE counterRecordId = ?1",
             [counter_record_id],
-            |row| Ok((map_raw_record(row)?, row.get::<_, i64>(6)?)),
+            |row| Ok((map_raw_record(row)?, row.get::<_, i64>(7)?)),
         )
         .optional()
         .map_err(|e| {
@@ -486,6 +513,8 @@ fn update_counter_record_impl(
         counter_out,
         total_delivered: stored_total,
         is_baseline: target.is_baseline,
+        // Una edición no reescribe el acuerdo: se conserva el % del registro
+        client_percent: target.client_percent,
     };
 
     // Baseline: sin cálculo (calculate_record devuelve None). Normal: contra su anterior.
@@ -655,7 +684,7 @@ pub fn get_route_summary(
     let mut records_stmt = conn
         .prepare(
             "SELECT counterRecordId, recordDate, counterIn, counterOut,
-                    totalDelivered, isBaseline
+                    totalDelivered, isBaseline, clientPercent
              FROM CounterRecord
              WHERE machineId = ?1
              ORDER BY recordDate ASC, counterRecordId ASC",
@@ -767,7 +796,8 @@ mod tests {
                 numberMachine TEXT NOT NULL UNIQUE,
                 typeMachineId INTEGER NOT NULL,
                 coinTypeId INTEGER NOT NULL,
-                routeId INTEGER NOT NULL
+                routeId INTEGER NOT NULL,
+                clientPercent INTEGER NOT NULL DEFAULT 50
             );
             CREATE TABLE CounterRecord (
                 counterRecordId INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -776,7 +806,8 @@ mod tests {
                 counterOut INTEGER NOT NULL,
                 totalDelivered REAL NOT NULL,
                 isBaseline INTEGER NOT NULL DEFAULT 0,
-                machineId INTEGER NOT NULL
+                machineId INTEGER NOT NULL,
+                clientPercent INTEGER NOT NULL DEFAULT 50
             );
             INSERT INTO TypeMachine (typeMachineId, nameTypeMachine) VALUES (1, 'Slot');
             INSERT INTO CoinType (coinTypeId, numCoin) VALUES (1, 100);
@@ -882,6 +913,62 @@ mod tests {
         let reinicio = insert(&conn, "2026-02-01", 0, 0, 0.0, true);
 
         assert!(delete_counter_record_impl(&conn, reinicio).is_ok());
+    }
+
+    // Inserta un registro con un % de cliente explícito
+    fn insert_pct(conn: &Connection, date: &str, cin: i64, cout: i64, total: f64, pct: i64) -> i64 {
+        conn.execute(
+            "INSERT INTO CounterRecord
+                (recordDate, counterIn, counterOut, totalDelivered, isBaseline, machineId, clientPercent)
+             VALUES (?1, ?2, ?3, ?4, 0, 1, ?5)",
+            params![date, cin, cout, total, pct],
+        )
+        .unwrap();
+        conn.last_insert_rowid()
+    }
+
+    // Con el 50 por defecto, el saldo sigue siendo la mitad del total.
+    #[test]
+    fn saldo_con_cliente_50_es_la_mitad() {
+        let conn = setup_conn();
+        insert(&conn, "2026-01-01", 0, 0, 0.0, true);
+        let r = insert(&conn, "2026-01-15", 1000, 400, 300.0, false);
+
+        let calc = update_counter_record_impl(&conn, r, "2026-01-15".into(), 1000, 400, 300.0).unwrap();
+        assert_eq!(calc.client_percent, 50);
+        assert_eq!(calc.saldo, Some(150.0));
+    }
+
+    // Saldo = parte de la empresa = total * (100 - %cliente) / 100.
+    #[test]
+    fn saldo_usa_el_complemento_del_porcentaje_del_cliente() {
+        let conn = setup_conn();
+        insert(&conn, "2026-01-01", 0, 0, 0.0, true);
+        let r = insert_pct(&conn, "2026-01-15", 1000, 400, 1000.0, 40);
+
+        let calc = update_counter_record_impl(&conn, r, "2026-01-15".into(), 1000, 400, 1000.0).unwrap();
+        assert_eq!(calc.saldo, Some(600.0));
+        // IN-OUT y Falta/Sobra no dependen del reparto
+        assert_eq!(calc.in_out, Some(60000.0));
+        assert_eq!(calc.falta_sobra, Some(1000.0 - 60000.0));
+    }
+
+    // Cambiar el acuerdo de la máquina no reescribe el % de un registro al editarlo.
+    #[test]
+    fn editar_registro_conserva_su_porcentaje_aunque_cambie_la_maquina() {
+        let conn = setup_conn();
+        insert(&conn, "2026-01-01", 0, 0, 0.0, true);
+        let r = insert_pct(&conn, "2026-01-15", 1000, 400, 1000.0, 45);
+        conn.execute("UPDATE Machine SET clientPercent = 40 WHERE machineId = 1", [])
+            .unwrap();
+
+        let calc = update_counter_record_impl(&conn, r, "2026-01-15".into(), 1000, 400, 2000.0).unwrap();
+        assert_eq!(calc.client_percent, 45);
+        assert_eq!(calc.saldo, Some(1100.0));
+        let stored: i64 = conn
+            .query_row("SELECT clientPercent FROM CounterRecord WHERE counterRecordId = ?1", [r], |row| row.get(0))
+            .unwrap();
+        assert_eq!(stored, 45);
     }
 
     // La instalación (baseline más antiguo) nunca se borra.

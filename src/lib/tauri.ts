@@ -76,6 +76,7 @@ export function createMachine(data: {
   typeMachineId: number;
   coinTypeId: number;
   routeId: number;
+  clientPercent: number;
   initialIn: number;
   initialOut: number;
 }): Promise<Machine> {
@@ -88,6 +89,7 @@ export function updateMachine(data: {
   typeMachineId: number;
   coinTypeId: number;
   routeId: number;
+  clientPercent: number;
 }): Promise<Machine> {
   return invoke<Machine>("update_machine", { ...data });
 }
