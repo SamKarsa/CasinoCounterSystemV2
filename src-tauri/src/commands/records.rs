@@ -160,6 +160,29 @@ pub fn create_counter_record(
     total_delivered: f64,
     db: State<DbConnection>,
 ) -> Result<CounterRecordWithCalc, String> {
+    let conn = db
+        .0
+        .lock()
+        .map_err(|e| format!("DB lock poisoned: {}", e))?;
+
+    create_counter_record_impl(
+        &conn,
+        machine_id,
+        record_date,
+        counter_in,
+        counter_out,
+        total_delivered,
+    )
+}
+
+fn create_counter_record_impl(
+    conn: &Connection,
+    machine_id: i64,
+    record_date: String,
+    counter_in: i64,
+    counter_out: i64,
+    total_delivered: f64,
+) -> Result<CounterRecordWithCalc, String> {
     if counter_in < 0 || counter_out < 0 {
         return Err("Los contadores no pueden ser negativos".to_string());
     }
@@ -172,12 +195,7 @@ pub fn create_counter_record(
     // Guardar siempre en formato canónico YYYY-MM-DD (orden y comparación consistentes)
     let record_date = new_date.format(DATE_FMT).to_string();
 
-    let conn = db
-        .0
-        .lock()
-        .map_err(|e| format!("DB lock poisoned: {}", e))?;
-
-    let (num_coin, is_poker) = machine_calc_info(&conn, machine_id)?;
+    let (num_coin, is_poker) = machine_calc_info(conn, machine_id)?;
 
     // Último registro de la máquina (línea base o el previo más reciente)
     let last = conn
@@ -262,6 +280,21 @@ pub fn create_baseline_record(
     counter_out: i64,
     db: State<DbConnection>,
 ) -> Result<CounterRecordWithCalc, String> {
+    let conn = db
+        .0
+        .lock()
+        .map_err(|e| format!("DB lock poisoned: {}", e))?;
+
+    create_baseline_record_impl(&conn, machine_id, record_date, counter_in, counter_out)
+}
+
+fn create_baseline_record_impl(
+    conn: &Connection,
+    machine_id: i64,
+    record_date: String,
+    counter_in: i64,
+    counter_out: i64,
+) -> Result<CounterRecordWithCalc, String> {
     if counter_in < 0 || counter_out < 0 {
         return Err("Los contadores no pueden ser negativos".to_string());
     }
@@ -271,12 +304,7 @@ pub fn create_baseline_record(
     // Guardar siempre en formato canónico YYYY-MM-DD (orden y comparación consistentes)
     let record_date = new_date.format(DATE_FMT).to_string();
 
-    let conn = db
-        .0
-        .lock()
-        .map_err(|e| format!("DB lock poisoned: {}", e))?;
-
-    let (num_coin, is_poker) = machine_calc_info(&conn, machine_id)?;
+    let (num_coin, is_poker) = machine_calc_info(conn, machine_id)?;
 
     // Un reinicio corta una cadena existente: la máquina debe tener registros
     let last = conn
@@ -609,6 +637,20 @@ pub fn get_route_summary(
     to_date: String,
     db: State<DbConnection>,
 ) -> Result<RouteSummary, String> {
+    let conn = db
+        .0
+        .lock()
+        .map_err(|e| format!("DB lock poisoned: {}", e))?;
+
+    get_route_summary_impl(&conn, route_id, from_date, to_date)
+}
+
+fn get_route_summary_impl(
+    conn: &Connection,
+    route_id: i64,
+    from_date: String,
+    to_date: String,
+) -> Result<RouteSummary, String> {
     let invalid_range = || "El rango de fechas no es válido".to_string();
 
     let from = NaiveDate::parse_from_str(from_date.trim(), DATE_FMT).map_err(|_| invalid_range())?;
@@ -621,11 +663,6 @@ pub fn get_route_summary(
     // hace como texto (mismo criterio que el ORDER BY recordDate del esquema).
     let from_date = from.format(DATE_FMT).to_string();
     let to_date = to.format(DATE_FMT).to_string();
-
-    let conn = db
-        .0
-        .lock()
-        .map_err(|e| format!("DB lock poisoned: {}", e))?;
 
     let route_name: Option<String> = conn
         .query_row(
@@ -809,7 +846,13 @@ mod tests {
                 machineId INTEGER NOT NULL,
                 clientPercent INTEGER NOT NULL DEFAULT 50
             );
+            CREATE TABLE Route (
+                routeId INTEGER PRIMARY KEY AUTOINCREMENT,
+                routeName TEXT NOT NULL UNIQUE
+            );
+            INSERT INTO Route (routeId, routeName) VALUES (1, 'Ruta 1');
             INSERT INTO TypeMachine (typeMachineId, nameTypeMachine) VALUES (1, 'Slot');
+            INSERT INTO TypeMachine (typeMachineId, nameTypeMachine) VALUES (2, 'Poker');
             INSERT INTO CoinType (coinTypeId, numCoin) VALUES (1, 100);
             INSERT INTO Machine (machineId, numberMachine, typeMachineId, coinTypeId, routeId)
                 VALUES (1, 'A1', 1, 1, 1);",
@@ -981,5 +1024,126 @@ mod tests {
         let res = delete_counter_record_impl(&conn, install);
         assert!(res.is_err());
         assert!(res.unwrap_err().contains("instalación"));
+    }
+
+    // Crea una máquina en la ruta 1 (moneda 100) con su registro de instalación
+    // en 0/0, como hace create_machine.
+    fn add_machine(conn: &Connection, id: i64, number: &str, type_id: i64, pct: i64) {
+        conn.execute(
+            "INSERT INTO Machine (machineId, numberMachine, typeMachineId, coinTypeId, routeId, clientPercent)
+             VALUES (?1, ?2, ?3, 1, 1, ?4)",
+            params![id, number, type_id, pct],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO CounterRecord
+                (recordDate, counterIn, counterOut, totalDelivered, isBaseline, machineId, clientPercent)
+             VALUES ('2026-01-01', 0, 0, 0, 1, ?1, ?2)",
+            params![id, pct],
+        )
+        .unwrap();
+    }
+
+    fn set_machine_percent(conn: &Connection, id: i64, pct: i64) {
+        conn.execute(
+            "UPDATE Machine SET clientPercent = ?1 WHERE machineId = ?2",
+            params![pct, id],
+        )
+        .unwrap();
+    }
+
+    fn stored_percent(conn: &Connection, record_id: i64) -> i64 {
+        conn.query_row(
+            "SELECT clientPercent FROM CounterRecord WHERE counterRecordId = ?1",
+            [record_id],
+            |row| row.get(0),
+        )
+        .unwrap()
+    }
+
+    // Máquina al 45%: la empresa se queda con el 55% del total.
+    #[test]
+    fn crear_registro_en_maquina_al_45_liquida_al_55_para_la_empresa() {
+        let conn = setup_conn();
+        add_machine(&conn, 2, "B1", 1, 45);
+
+        let calc =
+            create_counter_record_impl(&conn, 2, "2026-01-15".into(), 1000, 400, 100000.0).unwrap();
+        assert_eq!(calc.client_percent, 45);
+        assert_eq!(calc.saldo, Some(55000.0));
+        assert_eq!(stored_percent(&conn, calc.counter_record_id), 45);
+    }
+
+    // El reinicio copia el % vigente de la máquina y el registro siguiente
+    // liquida con su propio 45%.
+    #[test]
+    fn reinicio_en_maquina_al_45_guarda_45_y_el_siguiente_liquida_al_45() {
+        let conn = setup_conn();
+        add_machine(&conn, 2, "B1", 1, 45);
+        create_counter_record_impl(&conn, 2, "2026-01-15".into(), 1000, 400, 300.0).unwrap();
+
+        let reinicio =
+            create_baseline_record_impl(&conn, 2, "2026-02-01".into(), 0, 0).unwrap();
+        assert!(reinicio.is_baseline);
+        assert_eq!(reinicio.client_percent, 45);
+        assert_eq!(stored_percent(&conn, reinicio.counter_record_id), 45);
+        assert!(reinicio.saldo.is_none());
+
+        let siguiente =
+            create_counter_record_impl(&conn, 2, "2026-02-15".into(), 200, 80, 10000.0).unwrap();
+        assert_eq!(siguiente.client_percent, 45);
+        assert_eq!(siguiente.saldo, Some(5500.0));
+        // Calculado contra el reinicio (0/0), no contra el ciclo anterior
+        assert_eq!(siguiente.in_out, Some((200.0 - 80.0) * 100.0));
+    }
+
+    // El resumen suma el saldo de cada registro con SU porcentaje: máquinas con
+    // acuerdos distintos y una máquina cuyo acuerdo cambió dentro del rango.
+    #[test]
+    fn resumen_de_ruta_suma_saldos_con_el_porcentaje_de_cada_registro() {
+        let conn = setup_conn();
+        // La máquina 1 de setup_conn no tiene registros: queda sin liquidar
+        add_machine(&conn, 2, "B1", 1, 40);
+        add_machine(&conn, 3, "B2", 1, 50);
+        add_machine(&conn, 4, "B3", 1, 40);
+
+        create_counter_record_impl(&conn, 2, "2026-01-15".into(), 1000, 400, 1000.0).unwrap();
+        create_counter_record_impl(&conn, 3, "2026-01-15".into(), 1000, 400, 1000.0).unwrap();
+        create_counter_record_impl(&conn, 4, "2026-01-15".into(), 1000, 400, 1000.0).unwrap();
+        set_machine_percent(&conn, 4, 50);
+        create_counter_record_impl(&conn, 4, "2026-02-01".into(), 2000, 800, 1000.0).unwrap();
+
+        let summary =
+            get_route_summary_impl(&conn, 1, "2026-01-10".into(), "2026-02-28".into()).unwrap();
+        let saldo_de = |number: &str| {
+            summary
+                .machines
+                .iter()
+                .find(|m| m.number_machine == number)
+                .unwrap()
+                .saldo
+        };
+
+        assert_eq!(saldo_de("B1"), 600.0); // 1000 al 40%
+        assert_eq!(saldo_de("B2"), 500.0); // 1000 al 50%
+        assert_eq!(saldo_de("B3"), 600.0 + 500.0); // 1000 al 40% + 1000 al 50%
+        assert_eq!(summary.total_delivered, 4000.0);
+        assert_eq!(summary.total_saldo, 2200.0);
+        assert_ne!(summary.total_saldo, summary.total_delivered / 2.0);
+        assert_eq!(summary.machines_liquidated, 3);
+    }
+
+    // Poker al 40%: el saldo usa el 40% y el IN-OUT sale solo del Δout.
+    #[test]
+    fn poker_al_40_usa_su_porcentaje_y_in_out_solo_del_out() {
+        let conn = setup_conn();
+        add_machine(&conn, 2, "P1", 2, 40);
+
+        let calc =
+            create_counter_record_impl(&conn, 2, "2026-01-15".into(), 1000, 400, 50000.0).unwrap();
+        assert_eq!(calc.client_percent, 40);
+        assert_eq!(calc.saldo, Some(30000.0));
+        assert_eq!(calc.in_out, Some(400.0 * 100.0));
+        assert_eq!(calc.falta_sobra, Some(50000.0 - 40000.0));
     }
 }
